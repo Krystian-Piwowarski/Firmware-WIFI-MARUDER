@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ESP32-S3 Symulator</title>
+<meta name="description" content="Wirtualna płytka ESP32-S3 z wyświetlaczem OLED, diodą RGB i przyciskami — pisz kod w stylu Arduino i uruchom bez sprzętu." />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+<style>
+/* Layout: two-column workbench — virtual board on the left, code editor + serial on the right; stacks on narrow screens. */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --panel-2:#f5f7f9; --edge:#d6dce2;
+  --fg:#1a2230; --muted:#5e6b7d; --faint:#8b97a6;
+  --accent:#0f9d8e; --accent-soft:#d2efeb; --amber:#c47a06;
+  --good:#1a9e5c; --warn:#c47a06; --crit:#d1443a;
+  --pcb:#15362e; --pcb-edge:#0c231d; --silk:#cfe0d9; --pad:#d8b24a;
+  --code-bg:#0e151f; --code-fg:#d7e0ea;
+  --shadow:0 1px 2px rgba(20,30,45,.06),0 8px 24px rgba(20,30,45,.08);
+  --font-disp:"Chakra Petch",system-ui,sans-serif;
+  --font-ui:"IBM Plex Sans",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1118; --panel:#141b26; --panel-2:#101620; --edge:#273242;
+  --fg:#e5ecf4; --muted:#9aa8bb; --faint:#66748a;
+  --accent:#2dd4bf; --accent-soft:#113b38; --amber:#e0a033;
+  --good:#3bd47f; --warn:#e0a033; --crit:#ef6b60;
+  --pcb:#123029; --pcb-edge:#071812; --silk:#bcd3cb; --pad:#e2bd58;
+  --code-bg:#0a0f16; --code-fg:#d7e0ea;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.4);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0c1118; --panel:#141b26; --panel-2:#101620; --edge:#273242;
+  --fg:#e5ecf4; --muted:#9aa8bb; --faint:#66748a;
+  --accent:#2dd4bf; --accent-soft:#113b38; --amber:#e0a033;
+  --good:#3bd47f; --warn:#e0a033; --crit:#ef6b60;
+  --pcb:#123029; --pcb-edge:#071812; --silk:#bcd3cb; --pad:#e2bd58;
+  --code-bg:#0a0f16; --code-fg:#d7e0ea;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);line-height:1.45;margin:0}
+button{font-family:inherit}
+
+.wrap{max-width:1280px;margin:0 auto;padding-block:18px;padding-left:16px;padding-right:16px;display:flex;flex-direction:column;gap:16px;min-height:100%}
+
+header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.chip{width:40px;height:40px;border-radius:9px;background:linear-gradient(145deg,var(--pcb),var(--pcb-edge));position:relative;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.chip::before{content:"";position:absolute;inset:7px;border:1.5px solid var(--silk);border-radius:3px;opacity:.6}
+.chip::after{content:"S3";position:absolute;inset:0;display:grid;place-items:center;font-family:var(--font-disp);font-weight:700;font-size:13px;color:var(--silk);letter-spacing:.5px}
+.brand h1{font-family:var(--font-disp);font-weight:700;font-size:1.18rem;margin:0;letter-spacing:.3px}
+.brand p{margin:0;font-size:.74rem;color:var(--muted);letter-spacing:.3px}
+header .spacer{flex:1}
+.theme-btn{background:var(--panel);border:1px solid var(--edge);color:var(--muted);border-radius:8px;padding:8px 11px;cursor:pointer;font-size:.8rem;display:inline-flex;gap:6px;align-items:center}
+.theme-btn:hover{color:var(--fg);border-color:var(--accent)}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:var(--shadow)}
+.card>h2{font-family:var(--font-disp);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:0;padding:13px 16px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:8px}
+.card>h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.card .body{padding:16px}
+
+/* ---- Virtual board ---- */
+.board{background:linear-gradient(160deg,var(--pcb),var(--pcb-edge));border-radius:12px;padding:16px;position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),inset 0 0 40px rgba(0,0,0,.35)}
+.board .label{font-family:var(--font-mono);font-size:.62rem;color:var(--silk);opacity:.7;letter-spacing:.5px;text-transform:uppercase}
+.oled-wrap{display:flex;justify-content:center;margin:4px 0 14px}
+.oled{background:#000;border:6px solid #1b1b20;border-radius:6px;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.5);image-rendering:pixelated;width:100%;max-width:320px;height:auto;display:block}
+.components{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;justify-content:space-between}
+.comp{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:64px}
+.comp .cap{font-family:var(--font-mono);font-size:.6rem;color:var(--silk);opacity:.8;text-align:center;line-height:1.3}
+.led{width:30px;height:30px;border-radius:50%;background:#0a0a0a;box-shadow:inset 0 0 0 2px rgba(255,255,255,.12);transition:background .05s,box-shadow .05s}
+.rgb{width:34px;height:34px;border-radius:7px;background:#060606;box-shadow:inset 0 0 0 2px rgba(255,255,255,.12);transition:background .05s,box-shadow .05s}
+.btn-phys{width:46px;height:46px;border-radius:9px;background:linear-gradient(180deg,#30363f,#1c2126);border:1px solid rgba(255,255,255,.1);box-shadow:0 3px 0 #0c0f13,0 4px 6px rgba(0,0,0,.4);cursor:pointer;color:var(--silk);font-family:var(--font-mono);font-size:.56rem;display:grid;place-items:center;user-select:none;-webkit-user-select:none;touch-action:none;transition:transform .04s,box-shadow .04s}
+.btn-phys:active,.btn-phys.down{transform:translateY(3px);box-shadow:0 0 0 #0c0f13,0 1px 2px rgba(0,0,0,.4)}
+.pot{width:100%;max-width:130px}
+.pot input{width:100%;accent-color:var(--accent)}
+.pot .val{font-family:var(--font-mono);font-size:.62rem;color:var(--silk);opacity:.85}
+
+/* ---- Pin / state readout ---- */
+.pins{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+.pin{background:var(--panel-2);border:1px solid var(--edge);border-radius:8px;padding:8px 10px;font-size:.72rem}
+.pin .gpio{font-family:var(--font-mono);font-weight:500;color:var(--fg);display:flex;justify-content:space-between;align-items:center}
+.pin .st{font-family:var(--font-mono);font-size:.68rem;color:var(--muted);margin-top:2px}
+.pin .bit{font-family:var(--font-mono);font-weight:600;padding:1px 6px;border-radius:5px;font-size:.66rem}
+.bit.hi{background:var(--accent-soft);color:var(--accent)}
+.bit.lo{background:rgba(127,127,127,.14);color:var(--faint)}
+
+/* ---- Editor ---- */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--edge);background:var(--panel-2);border-radius:14px 14px 0 0}
+.btn{border:1px solid var(--edge);background:var(--panel);color:var(--fg);border-radius:8px;padding:7px 13px;font-size:.82rem;font-weight:500;cursor:pointer;display:inline-flex;gap:7px;align-items:center;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.run{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.run:hover{filter:brightness(1.07)}
+.btn.stop{background:var(--crit);color:#fff;border-color:var(--crit)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.toolbar .spacer{flex:1}
+.toolbar select{font-family:var(--font-ui);font-size:.78rem;padding:6px 8px;border-radius:7px;border:1px solid var(--edge);background:var(--panel);color:var(--fg)}
+.toolbar label{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.editor-host{position:relative}
+textarea#code{width:100%;min-height:360px;resize:vertical;border:0;border-radius:0;padding:14px 16px;font-family:var(--font-mono);font-size:13px;line-height:1.55;background:var(--code-bg);color:var(--code-fg);tab-size:2;outline:none;display:block}
+textarea#code:focus{box-shadow:inset 0 0 0 2px var(--accent)}
+
+/* ---- Serial ---- */
+.serial-head{display:flex;align-items:center;gap:8px;padding:11px 16px;border-top:1px solid var(--edge)}
+.serial-head .t{font-family:var(--font-disp);font-size:.78rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.serial{font-family:var(--font-mono);font-size:12.5px;line-height:1.5;background:var(--code-bg);color:var(--code-fg);padding:12px 16px;height:168px;overflow:auto;white-space:pre-wrap;word-break:break-word;border-radius:0 0 14px 14px}
+.serial .err{color:var(--crit)}
+.serial .sys{color:var(--accent)}
+.serial .in{color:var(--amber)}
+.status{font-family:var(--font-mono);font-size:.7rem;padding:2px 9px;border-radius:20px;letter-spacing:.3px}
+.status.idle{background:rgba(127,127,127,.15);color:var(--faint)}
+.status.run{background:var(--accent-soft);color:var(--accent)}
+.status.err{background:rgba(209,68,58,.16);color:var(--crit)}
+
+.legend{font-size:.72rem;color:var(--muted);line-height:1.6}
+.legend code{font-family:var(--font-mono);background:var(--panel-2);border:1px solid var(--edge);padding:1px 5px;border-radius:4px;font-size:.9em;color:var(--fg)}
+.legend b{color:var(--fg);font-weight:600}
+details.help summary{cursor:pointer;font-family:var(--font-disp);font-size:.8rem;color:var(--accent);letter-spacing:.3px;padding:4px 0}
+details.help[open] summary{margin-bottom:8px}
+footer{color:var(--faint);font-size:.72rem;text-align:center;padding-top:4px}
+::selection{background:var(--accent);color:#fff}
+</style>
+<style>
+  :root{color-scheme:light}
+  html,body{margin:0}
+  *{box-sizing:border-box}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="chip" aria-hidden="true"></div>
+      <div>
+        <h1>ESP32-S3 Symulator</h1>
+        <p>Wirtualna płytka · OLED SSD1306 · RGB · ADC</p>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="theme-btn" id="themeBtn" title="Zmień motyw">◐ Motyw</button>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: virtual board -->
+    <section class="card">
+      <h2><span class="dot"></span> Wirtualna płytka</h2>
+      <div class="body">
+        <div class="board">
+          <div class="label">ESP32-S3-DevKitC · OLED 128×64 (I²C)</div>
+          <div class="oled-wrap">
+            <canvas id="oled" class="oled" width="128" height="64"></canvas>
+          </div>
+          <div class="components">
+            <div class="comp">
+              <div class="rgb" id="rgbLed"></div>
+              <div class="cap">RGB LED<br>GPIO48</div>
+            </div>
+            <div class="comp">
+              <div class="led" id="led"></div>
+              <div class="cap">LED<br>GPIO2</div>
+            </div>
+            <div class="comp">
+              <button class="btn-phys" id="btnBoot" aria-label="Przycisk BOOT">BOOT</button>
+              <div class="cap">GPIO0<br>pull-up</div>
+            </div>
+            <div class="comp">
+              <button class="btn-phys" id="btnUser" aria-label="Przycisk użytkownika">BTN</button>
+              <div class="cap">GPIO14<br>pull-up</div>
+            </div>
+            <div class="comp pot">
+              <input type="range" id="pot" min="0" max="4095" value="2048" aria-label="Potencjometr ADC">
+              <div class="val" id="potVal">GPIO4 · 2048</div>
+            </div>
+          </div>
+        </div>
+
+        <h2 style="border:0;padding:16px 0 8px;font-size:.74rem">Stan pinów</h2>
+        <div class="pins" id="pins"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: editor + serial -->
+    <section class="card">
+      <div class="toolbar">
+        <button class="btn run" id="runBtn">▶ Uruchom</button>
+        <button class="btn stop" id="stopBtn" disabled>■ Stop</button>
+        <span class="status idle" id="status">bezczynny</span>
+        <div class="spacer"></div>
+        <label>Przykład
+          <select id="examples">
+            <option value="blink">Blink RGB + LED</option>
+            <option value="hello">Hello OLED</option>
+            <option value="button">Przycisk → ekran</option>
+            <option value="adc">Wykres ADC</option>
+            <option value="bounce">Animacja bouncing</option>
+          </select>
+        </label>
+        <label>Prędkość
+          <select id="speed">
+            <option value="1">1×</option>
+            <option value="2">2×</option>
+            <option value="5">5×</option>
+            <option value="0.5">0,5×</option>
+          </select>
+        </label>
+      </div>
+      <div class="editor-host">
+        <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+      <div class="serial-head">
+        <span class="t">Serial Monitor · 115200</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn" id="clearSerial" style="padding:4px 10px;font-size:.72rem">Wyczyść</button>
+      </div>
+      <div class="serial" id="serial"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="body">
+      <details class="help">
+        <summary>Dostępne API (styl Arduino) — kliknij, aby rozwinąć</summary>
+        <div class="legend">
+          <p><b>Struktura:</b> zdefiniuj <code>function setup()</code> i <code>function loop()</code>, dokładnie jak w szkicu Arduino. Pauzy rób przez <code>await delay(ms)</code> — dlatego <code>loop</code> może być <code>async</code> (zobacz przykłady).</p>
+          <p><b>GPIO:</b> <code>pinMode(pin, OUTPUT|INPUT|INPUT_PULLUP)</code> · <code>digitalWrite(pin, HIGH|LOW)</code> · <code>digitalRead(pin)</code> · <code>analogRead(pin)</code> (0–4095) · <code>neopixelWrite(48, r, g, b)</code></p>
+          <p><b>Czas:</b> <code>await delay(ms)</code> · <code>millis()</code> · <code>micros()</code></p>
+          <p><b>Serial:</b> <code>Serial.println(x)</code> · <code>Serial.print(x)</code> · <code>Serial.printf("%d", x)</code></p>
+          <p><b>OLED (Adafruit_GFX):</b> <code>display.clearDisplay()</code> · <code>display.setCursor(x,y)</code> · <code>display.setTextSize(n)</code> · <code>display.print(txt)</code> / <code>println(txt)</code> · <code>display.drawPixel(x,y,c)</code> · <code>drawLine</code> · <code>drawRect</code> · <code>fillRect</code> · <code>drawCircle</code> · <code>fillCircle</code> · <code>display.display()</code> (odśwież)</p>
+          <p><b>Piny:</b> LED=GPIO2, RGB=GPIO48, BOOT=GPIO0, przycisk=GPIO14 (oba z pull-up → wciśnięty = LOW), potencjometr=GPIO4.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <footer>Symulator działa w przeglądarce — logika JavaScript w stylu Arduino. Nie zastępuje realnego sprzętu w 100%, ale pozwala szybko sprawdzić UI i logikę softu.</footer>
+</div>
+
+<script>
+"use strict";
+(function(){
+/* ---------- theme ---------- */
+var root=document.documentElement;
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var cur=root.getAttribute('data-theme');
+  var dark=cur?cur==='dark':matchMedia('(prefers-color-scheme:dark)').matches;
+  root.setAttribute('data-theme',dark?'light':'dark');
+});
+
+/* ---------- OLED display (128x64, 1bpp) ---------- */
+var W=128,H=64,SCALE=1;
+var canvas=document.getElementById('oled');
+var ctx=canvas.getContext('2d');
+// render at higher internal res for crisp pixels
+var VS=4; canvas.width=W*VS; canvas.height=H*VS;
+var buf=new Uint8Array(W*H); // working buffer
+function gx(){return getComputedStyle(root).getPropertyValue('--accent')||'#2dd4bf';}
+var ON='#8ef6ff', OFF='#06121a';
+
+var curX=0,curY=0,txtSize=1,txtColor=1;
+
+/* 5x7 bitmap font. Glyphs are 7 rows of 5 px (top->bottom), transposed to
+   column bitmasks (bit0 = top row) to match drawChar. Lowercase reuses
+   uppercase shapes — fine for a small sim display. */
+function buildFont(){
+  var P={
+' ':['     ','     ','     ','     ','     ','     ','     '],
+'!':['  #  ','  #  ','  #  ','  #  ','     ','  #  ','     '],
+'"':[' # # ',' # # ','     ','     ','     ','     ','     '],
+'#':[' # # ','#####',' # # ','#####',' # # ','     ','     '],
+'%':['##  #','## # ','  #  ',' # ##','#  ##','     ','     '],
+"'":['  #  ','  #  ','     ','     ','     ','     ','     '],
+'(':['   # ','  #  ','  #  ','  #  ','  #  ','   # ','     '],
+')':[' #   ','  #  ','  #  ','  #  ','  #  ',' #   ','     '],
+'*':['     ','# # #',' ### ','#####',' ### ','# # #','     '],
+'+':['     ','  #  ','  #  ','#####','  #  ','  #  ','     '],
+',':['     ','     ','     ','     ','  #  ','  #  ',' #   '],
+'-':['     ','     ','     ','#####','     ','     ','     '],
+'.':['     ','     ','     ','     ','     ','  #  ','     '],
+'/':['    #','   # ','  #  ',' #   ','#    ','     ','     '],
+'0':[' ### ','#   #','#  ##','# # #','##  #','#   #',' ### '],
+'1':['  #  ',' ##  ','  #  ','  #  ','  #  ','  #  ',' ### '],
+'2':[' ### ','#   #','    #','   # ','  #  ',' #   ','#####'],
+'3':['#####','   # ','  #  ','   # ','    #','#   #',' ### '],
+'4':['   # ','  ## ',' # # ','#  # ','#####','   # ','   # '],
+'5':['#####','#    ','#### ','    #','    #','#   #',' ### '],
+'6':['  ## ',' #   ','#    ','#### ','#   #','#   #',' ### '],
+'7':['#####','    #','   # ','  #  ',' #   ',' #   ',' #   '],
+'8':[' ### ','#   #','#   #',' ### ','#   #','#   #',' ### '],
+'9':[' ### ','#   #','#   #',' ####','    #','   # ',' ##  '],
+':':['     ','  #  ','     ','     ','  #  ','     ','     '],
+';':['     ','  #  ','     ','     ','  #  ','  #  ',' #   '],
+'<':['   # ','  #  ',' #   ','#    ',' #   ','  #  ','   # '],
+'=':['     ','     ','#####','     ','#####','     ','     '],
+'>':[' #   ','  #  ','   # ','    #','   # ','  #  ',' #   '],
+'?':[' ### ','#   #','   # ','  #  ','  #  ','     ','  #  '],
+'A':[' ### ','#   #','#   #','#####','#   #','#   #','#   #'],
+'B':['#### ','#   #','#   #','#### ','#   #','#   #','#### '],
+'C':[' ### ','#   #','#    ','#    ','#    ','#   #',' ### '],
+'D':['###  ','#  # ','#   #','#   #','#   #','#  # ','###  '],
+'E':['#####','#    ','#    ','#### ','#    ','#    ','#####'],
+'F':['#####','#    ','#    ','#### ','#    ','#    ','#    '],
+'G':[' ### ','#   #','#    ','# ###','#   #','#   #',' ### '],
+'H':['#   #','#   #','#   #','#####','#   #','#   #','#   #'],
+'I':[' ### ','  #  ','  #  ','  #  ','  #  ','  #  ',' ### '],
+'J':['  ###','   # ','   # ','   # ','   # ','#  # ',' ##  '],
+'K':['#   #','#  # ','# #  ','##   ','# #  ','#  # ','#   #'],
+'L':['#    ','#    ','#    ','#    ','#    ','#    ','#####'],
+'M':['#   #','## ##','# # #','#   #','#   #','#   #','#   #'],
+'N':['#   #','##  #','# # #','#  ##','#   #','#   #','#   #'],
+'O':[' ### ','#   #','#   #','#   #','#   #','#   #',' ### '],
+'P':['#### ','#   #','#   #','#### ','#    ','#    ','#    '],
+'Q':[' ### ','#   #','#   #','#   #','# # #','#  # ',' ## #'],
+'R':['#### ','#   #','#   #','#### ','# #  ','#  # ','#   #'],
+'S':[' ####','#    ','#    ',' ### ','    #','    #','#### '],
+'T':['#####','  #  ','  #  ','  #  ','  #  ','  #  ','  #  '],
+'U':['#   #','#   #','#   #','#   #','#   #','#   #',' ### '],
+'V':['#   #','#   #','#   #','#   #','#   #',' # # ','  #  '],
+'W':['#   #','#   #','#   #','# # #','# # #','## ##','#   #'],
+'X':['#   #','#   #',' # # ','  #  ',' # # ','#   #','#   #'],
+'Y':['#   #','#   #',' # # ','  #  ','  #  ','  #  ','  #  '],
+'Z':['#####','    #','   # ','  #  ',' #   ','#    ','#####'],
+'_':['     ','     ','     ','     ','     ','     ','#####']
+  };
+  var map={};
+  function enc(rows){var cols=[0,0,0,0,0];for(var r=0;r<7;r++){var row=rows[r];for(var c=0;c<5;c++){if(row[c]==='#')cols[c]|=(1<<r);}}return cols;}
+  for(var ch in P)map[ch.charCodeAt(0)]=enc(P[ch]);
+  // lowercase -> uppercase glyphs
+  for(var code=97;code<=122;code++){map[code]=map[code-32];}
+  if(!map[63])map[63]=enc(P['?']);
+  return map;
+}
+var font5x7=buildFont();
+
+var display={
+  clearDisplay:function(){buf.fill(0);},
+  setCursor:function(x,y){curX=x|0;curY=y|0;},
+  setTextSize:function(s){txtSize=Math.max(1,s|0);},
+  setTextColor:function(c){txtColor=c?1:0;},
+  drawPixel:function(x,y,c){px(x,y,c);},
+  drawLine:function(x0,y0,x1,y1,c){line(x0,y0,x1,y1,c);},
+  drawRect:function(x,y,w,h,c){line(x,y,x+w-1,y,c);line(x,y+h-1,x+w-1,y+h-1,c);line(x,y,x,y+h-1,c);line(x+w-1,y,x+w-1,y+h-1,c);},
+  fillRect:function(x,y,w,h,c){for(var j=0;j<h;j++)for(var i=0;i<w;i++)px(x+i,y+j,c);},
+  drawCircle:function(x0,y0,r,c){circle(x0,y0,r,c,false);},
+  fillCircle:function(x0,y0,r,c){circle(x0,y0,r,c,true);},
+  print:function(t){writeText(String(t));},
+  println:function(t){writeText((t===undefined?'':String(t))+'\n');},
+  printf:function(){writeText(fmt(arguments));},
+  display:function(){render();}
+};
+function px(x,y,c){x|=0;y|=0;if(x<0||y<0||x>=W||y>=H)return;buf[y*W+x]=(c===undefined?1:(c?1:0));}
+function line(x0,y0,x1,y1,c){x0|=0;y0|=0;x1|=0;y1|=0;var dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0);var sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx+dy;while(true){px(x0,y0,c===undefined?1:c);if(x0===x1&&y0===y1)break;var e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
+function circle(x0,y0,r,c,fill){var x=r,y=0,err=1-r;c=c===undefined?1:c;while(x>=y){if(fill){line(x0-x,y0+y,x0+x,y0+y,c);line(x0-x,y0-y,x0+x,y0-y,c);line(x0-y,y0+x,x0+y,y0+x,c);line(x0-y,y0-x,x0+y,y0-x,c);}else{px(x0+x,y0+y,c);px(x0-x,y0+y,c);px(x0+x,y0-y,c);px(x0-x,y0-y,c);px(x0+y,y0+x,c);px(x0-y,y0+x,c);px(x0+y,y0-x,c);px(x0-y,y0-x,c);}y++;if(err<0)err+=2*y+1;else{x--;err+=2*(y-x)+1;}}}
+function writeText(t){for(var i=0;i<t.length;i++){var ch=t[i];if(ch==='\n'){curX=0;curY+=8*txtSize;continue;}drawChar(ch,curX,curY);curX+=6*txtSize;if(curX>=W){curX=0;curY+=8*txtSize;}}}
+function drawChar(ch,x,y){var code=ch.charCodeAt(0);var g=font5x7[code]||font5x7[63];for(var col=0;col<5;col++){var bits=g[col];for(var rrow=0;rrow<7;rrow++){if(bits&(1<<rrow)){if(txtSize===1)px(x+col,y+rrow,txtColor);else for(var a=0;a<txtSize;a++)for(var b=0;b<txtSize;b++)px(x+col*txtSize+a,y+rrow*txtSize+b,txtColor);}}}}
+function render(){
+  ctx.fillStyle=OFF;ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle=ON;
+  for(var y=0;y<H;y++)for(var x=0;x<W;x++){if(buf[y*W+x])ctx.fillRect(x*VS,y*VS,VS,VS);}
+}
+render();
+
+/* ---------- board peripherals ---------- */
+var ledEl=document.getElementById('led'),rgbEl=document.getElementById('rgbLed');
+function setLed(on){ledEl.style.background=on?'#ff4433':'#0a0a0a';ledEl.style.boxShadow=on?'inset 0 0 0 2px rgba(255,255,255,.12),0 0 16px 3px rgba(255,68,51,.75)':'inset 0 0 0 2px rgba(255,255,255,.12)';}
+function setRgb(r,g,b){var on=r||g||b;rgbEl.style.background='rgb('+r+','+g+','+b+')';rgbEl.style.boxShadow=on?'inset 0 0 0 2px rgba(255,255,255,.12),0 0 18px 4px rgba('+r+','+g+','+b+',.7)':'inset 0 0 0 2px rgba(255,255,255,.12)';}
+
+/* ---------- pin model ---------- */
+var LED_PIN=2,RGB_PIN=48,BOOT_PIN=0,BTN_PIN=14,POT_PIN=4;
+var pinModes={},pinVals={};
+var buttons={0:false,14:false}; // pressed state (true = pressed)
+var pot=2048;
+
+function resetPins(){pinModes={};pinVals={};setLed(false);setRgb(0,0,0);}
+
+/* ---------- Arduino API ---------- */
+var HIGH=1,LOW=0,OUTPUT=1,INPUT=0,INPUT_PULLUP=2;
+function pinMode(p,m){pinModes[p]=m;}
+function digitalWrite(p,v){pinVals[p]=v?1:0;if(p===LED_PIN)setLed(!!v);refreshPins();}
+function digitalRead(p){
+  if(p===BOOT_PIN)return buttons[0]?LOW:HIGH;   // pull-up: pressed=LOW
+  if(p===BTN_PIN)return buttons[14]?LOW:HIGH;
+  if(pinVals[p]!==undefined)return pinVals[p];
+  return (pinModes[p]===INPUT_PULLUP)?HIGH:LOW;
+}
+function analogRead(p){if(p===POT_PIN)return pot;return 0;}
+function neopixelWrite(p,r,g,b){r=clamp(r);g=clamp(g);b=clamp(b);if(p===RGB_PIN)setRgb(r,g,b);pinVals[p]='rgb';}
+function clamp(v){v=v|0;return v<0?0:v>255?255:v;}
+
+var tStart=0;
+function millis(){return Math.floor((perf()-tStart));}
+function micros(){return Math.floor((perf()-tStart)*1000);}
+function perf(){return (typeof performance!=='undefined'?performance.now():Date.now());}
+
+var speed=1;
+function delay(ms){ms=+ms||0;return new Promise(function(res){var t=ms/speed;if(t<=0){res();return;}abortTimers.push(setTimeout(res,t));});}
+function delayMicroseconds(us){return delay(us/1000);}
+
+var Serial={
+  begin:function(){},
+  print:function(x){serialOut(String(x),false);},
+  println:function(x){serialOut((x===undefined?'':String(x))+'\n',false);},
+  printf:function(){serialOut(fmt(arguments),false);},
+  write:function(x){serialOut(String.fromCharCode(x),false);}
+};
+function fmt(args){var f=String(args[0]);var i=1;return f.replace(/%[-0-9.]*([dsfxX%])/g,function(m,sp){if(sp==='%')return '%';var v=args[i++];if(sp==='d')return parseInt(v,10);if(sp==='f')return Number(v);if(sp==='x')return (v>>>0).toString(16);if(sp==='X')return (v>>>0).toString(16).toUpperCase();return v;});}
+function map(x,a,b,c,d){return (x-a)*(d-c)/(b-a)+c;}
+function constrain(x,a,b){return x<a?a:x>b?b:x;}
+function random(a,b){if(b===undefined){b=a;a=0;}return Math.floor(Math.random()*(b-a))+a;}
+
+/* ---------- serial UI ---------- */
+var serialEl=document.getElementById('serial');var serialBuf='';
+function serialOut(t,isErr,cls){
+  var span=document.createElement('span');
+  if(isErr)span.className='err';else if(cls)span.className=cls;
+  span.textContent=t;serialEl.appendChild(span);
+  serialEl.scrollTop=serialEl.scrollHeight;
+}
+document.getElementById('clearSerial').addEventListener('click',function(){serialEl.textContent='';});
+
+/* ---------- pin readout ---------- */
+var pinsEl=document.getElementById('pins');
+var watch=[{p:2,n:'GPIO2',t:'LED'},{p:48,n:'GPIO48',t:'RGB'},{p:0,n:'GPIO0',t:'BOOT'},{p:14,n:'GPIO14',t:'BTN'},{p:4,n:'GPIO4',t:'ADC'}];
+function refreshPins(){
+  var html='';
+  watch.forEach(function(w){
+    var v,bitcls,bittxt;
+    if(w.p===POT_PIN){bittxt=pot;bitcls='hi';v='ADC '+(pot)+'/4095';}
+    else if(w.p===RGB_PIN){var isrgb=pinVals[48]==='rgb';bittxt=isrgb?'RGB':'—';bitcls=isrgb?'hi':'lo';v=modeName(pinModes[w.p]);}
+    else{var rd=digitalRead(w.p);bittxt=rd?'HI':'LO';bitcls=rd?'hi':'lo';v=modeName(pinModes[w.p]);}
+    html+='<div class="pin"><div class="gpio">'+w.n+' <span class="bit '+bitcls+'">'+bittxt+'</span></div><div class="st">'+w.t+' · '+v+'</div></div>';
+  });
+  pinsEl.innerHTML=html;
+}
+function modeName(m){if(m===OUTPUT)return'OUTPUT';if(m===INPUT_PULLUP)return'IN_PULLUP';if(m===INPUT)return'INPUT';return'—';}
+refreshPins();
+
+/* ---------- physical inputs ---------- */
+function bindBtn(el,pin){
+  var down=function(e){e.preventDefault();buttons[pin]=true;el.classList.add('down');refreshPins();};
+  var up=function(e){buttons[pin]=false;el.classList.remove('down');refreshPins();};
+  el.addEventListener('mousedown',down);el.addEventListener('touchstart',down,{passive:false});
+  window.addEventListener('mouseup',up);el.addEventListener('touchend',up);el.addEventListener('touchcancel',up);
+}
+bindBtn(document.getElementById('btnBoot'),0);
+bindBtn(document.getElementById('btnUser'),14);
+var potEl=document.getElementById('pot'),potValEl=document.getElementById('potVal');
+potEl.addEventListener('input',function(){pot=+potEl.value;potValEl.textContent='GPIO4 · '+pot;refreshPins();});
+
+document.getElementById('speed').addEventListener('change',function(e){speed=+e.target.value;});
+
+/* ---------- runtime ---------- */
+var running=false,abortTimers=[],rafId=0;
+var statusEl=document.getElementById('status'),runBtn=document.getElementById('runBtn'),stopBtn=document.getElementById('stopBtn');
+function setStatus(s,cls){statusEl.textContent=s;statusEl.className='status '+cls;}
+
+function stopSim(msg){
+  running=false;
+  abortTimers.forEach(clearTimeout);abortTimers=[];
+  if(rafId)cancelAnimationFrame(rafId);rafId=0;
+  runBtn.disabled=false;stopBtn.disabled=true;
+  if(msg){setStatus('błąd','err');}else{setStatus('zatrzymany','idle');}
+}
+
+function buildUserFns(src){
+  var api=['HIGH','LOW','OUTPUT','INPUT','INPUT_PULLUP','pinMode','digitalWrite','digitalRead','analogRead','neopixelWrite','delay','delayMicroseconds','millis','micros','Serial','display','map','constrain','random','LED_PIN','RGB_PIN','BOOT_PIN','BTN_PIN','POT_PIN'];
+  var body=src+'\n;return {setup:(typeof setup==="function")?setup:null, loop:(typeof loop==="function")?loop:null};';
+  var factory=new Function(api.join(','),body);
+  var fns=factory(HIGH,LOW,OUTPUT,INPUT,INPUT_PULLUP,pinMode,digitalWrite,digitalRead,analogRead,neopixelWrite,delay,delayMicroseconds,millis,micros,Serial,display,map,constrain,random,LED_PIN,RGB_PIN,BOOT_PIN,BTN_PIN,POT_PIN);
+  return fns;
+}
+
+async function runSim(){
+  if(running)return;
+  var src=document.getElementById('code').value;
+  var fns;
+  try{fns=buildUserFns(src);}
+  catch(e){serialOut('[kompilacja] '+e.message+'\n',true);setStatus('błąd','err');return;}
+  if(!fns.setup&&!fns.loop){serialOut('[info] Zdefiniuj function setup() i/lub function loop().\n',false,'sys');return;}
+  resetPins();refreshPins();
+  running=true;runBtn.disabled=true;stopBtn.disabled=false;setStatus('działa','run');
+  tStart=perf();
+  serialOut('— start — '+new Date().toLocaleTimeString()+'\n',false,'sys');
+  try{
+    if(fns.setup)await fns.setup();
+    if(fns.loop){
+      var loopFn=fns.loop;
+      var pump=async function(){
+        if(!running)return;
+        try{await loopFn();}
+        catch(e){serialOut('[loop] '+e.message+'\n',true);stopSim(true);return;}
+        if(!running)return;
+        rafId=requestAnimationFrame(function(){ if(running) pump(); });
+      };
+      await pump();
+    }else{
+      stopSim();serialOut('— setup() zakończony —\n',false,'sys');
+    }
+  }catch(e){serialOut('[setup] '+e.message+'\n',true);stopSim(true);}
+}
+runBtn.addEventListener('click',runSim);
+stopBtn.addEventListener('click',function(){serialOut('— stop —\n',false,'sys');stopSim();});
+
+/* keep Tab in textarea */
+var codeEl=document.getElementById('code');
+codeEl.addEventListener('keydown',function(e){if(e.key==='Tab'){e.preventDefault();var s=this.selectionStart,en=this.selectionEnd;this.value=this.value.slice(0,s)+'  '+this.value.slice(en);this.selectionStart=this.selectionEnd=s+2;}});
+
+/* ---------- examples ---------- */
+var EX={
+blink:
+`// Miganie diody RGB i zwyklej LED
+function setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.println("Start Blink");
+}
+
+let i = 0;
+async function loop() {
+  const colors = [[255,0,0],[0,255,0],[0,0,255]];
+  const c = colors[i % 3];
+  neopixelWrite(48, c[0], c[1], c[2]);
+  digitalWrite(LED_PIN, HIGH);
+  Serial.printf("krok %d  t=%dms\\n", i, millis());
+  await delay(300);
+  digitalWrite(LED_PIN, LOW);
+  neopixelWrite(48, 0, 0, 0);
+  await delay(300);
+  i++;
+}`,
+hello:
+`// Tekst i grafika na OLED 128x64
+function setup() {
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(6, 4);
+  display.println("ESP32-S3");
+  display.setTextSize(1);
+  display.setCursor(6, 26);
+  display.println("Symulator OLED");
+  display.drawRect(0, 0, 128, 64, 1);
+  display.drawLine(0, 40, 127, 40, 1);
+  display.fillCircle(100, 52, 7, 1);
+  display.display();
+  Serial.println("Ekran narysowany");
+}
+// brak loop() — rysujemy raz`,
+button:
+`// Reakcja na przyciski (pull-up: wcisniety = LOW)
+function setup() {
+  pinMode(BOOT_PIN, INPUT_PULLUP);
+  pinMode(BTN_PIN, INPUT_PULLUP);
+}
+
+let count = 0, last = HIGH;
+async function loop() {
+  const b = digitalRead(BTN_PIN);
+  if (b === LOW && last === HIGH) {
+    count++;
+    Serial.printf("Klikniecie #%d\\n", count);
+  }
+  last = b;
+
+  const boot = (digitalRead(BOOT_PIN) === LOW);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(4, 4);
+  display.println("Wcisnij BTN / BOOT");
+  display.setTextSize(3);
+  display.setCursor(30, 24);
+  display.println(count);
+  if (boot) { display.setTextSize(1); display.setCursor(4,54); display.print("BOOT wcisniety"); }
+  display.display();
+  await delay(20);
+}`,
+adc:
+`// Wykres przewijany z potencjometru (GPIO4)
+const hist = new Array(128).fill(0);
+function setup() { Serial.println("Krec suwakiem ADC"); }
+
+async function loop() {
+  const v = analogRead(POT_PIN);         // 0..4095
+  const y = Math.round(map(v, 0, 4095, 63, 10));
+  hist.push(y); hist.shift();
+  display.clearDisplay();
+  display.setTextSize(1); display.setCursor(2, 0);
+  display.print("ADC="); display.print(v);
+  for (let x = 1; x < 128; x++) display.drawLine(x-1, hist[x-1], x, hist[x], 1);
+  display.display();
+  await delay(30);
+}`,
+bounce:
+`// Odbijajaca sie pilka
+let x = 20, y = 20, dx = 2, dy = 1, r = 5;
+function setup() { pinMode(LED_PIN, OUTPUT); }
+
+async function loop() {
+  x += dx; y += dy;
+  if (x <= r || x >= 127 - r) { dx = -dx; digitalWrite(LED_PIN, HIGH); }
+  else digitalWrite(LED_PIN, LOW);
+  if (y <= r || y >= 63 - r) dy = -dy;
+  display.clearDisplay();
+  display.drawRect(0, 0, 128, 64, 1);
+  display.fillCircle(x, y, r, 1);
+  display.display();
+  await delay(16);
+}`
+};
+var exSel=document.getElementById('examples');
+function loadExample(k){codeEl.value=EX[k];}
+exSel.addEventListener('change',function(){if(running)stopSim();loadExample(exSel.value);});
+loadExample('blink');
+
+})();
+</script>
+</body>
+</html>
