@@ -1,0 +1,41 @@
+name: Android – Kwiatownik (APK)
+
+on:
+  push:
+    paths:
+      - 'android-plant-app/**'
+      - '.github/workflows/android-plant-app.yml'
+  pull_request:
+    paths:
+      - 'android-plant-app/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-plant-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        env:
+          # Opcjonalnie: dodaj sekret PLANTNET_API_KEY w ustawieniach repo,
+          # aby klucz był wbudowany w APK. Bez niego wpisuje się go w aplikacji.
+          PLANTNET_API_KEY: ${{ secrets.PLANTNET_API_KEY }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kwiatownik-debug-apk
+          path: android-plant-app/app/build/outputs/apk/debug/*.apk
