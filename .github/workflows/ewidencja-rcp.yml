@@ -3,11 +3,11 @@ name: Ewidencja RCP – build EXE
 on:
   push:
     paths:
-      - 'EwidencjaCzasuPracy/**'
+      - 'Aplikacje/EwidencjaCzasuPracy/**'
       - '.github/workflows/ewidencja-rcp.yml'
   pull_request:
     paths:
-      - 'EwidencjaCzasuPracy/**'
+      - 'Aplikacje/EwidencjaCzasuPracy/**'
   workflow_dispatch:
 
 jobs:
@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: EwidencjaCzasuPracy
+        working-directory: Aplikacje/EwidencjaCzasuPracy
     steps:
       - uses: actions/checkout@v4
 
@@ -39,4 +39,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: EwidencjaRCP-win-x64
-          path: EwidencjaCzasuPracy/dist/
+          path: Aplikacje/EwidencjaCzasuPracy/dist/

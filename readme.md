@@ -8,4 +8,4 @@ Ponieważ płytka którą kupiłem w chinach jest bardzo przekorna i ciężko by
 
 ## Ewidencja Czasu Pracy RCP (Windows)
 
-W katalogu [`EwidencjaCzasuPracy/`](EwidencjaCzasuPracy/README.md) jest osobny program dla Windows (jeden plik EXE) do rejestracji wejść i wyjść kartami Mifare: kalendarz, wyszukiwanie, baza SQLite dla dużej liczby pracowników.
+W katalogu [`Aplikacje/EwidencjaCzasuPracy/`](Aplikacje/EwidencjaCzasuPracy/README.md) jest osobny program dla Windows (jeden plik EXE) do rejestracji wejść i wyjść kartami Mifare: kalendarz, wyszukiwanie, baza SQLite dla dużej liczby pracowników.
