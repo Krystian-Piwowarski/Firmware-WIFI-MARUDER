@@ -1,0 +1,42 @@
+name: Ewidencja RCP – build EXE
+
+on:
+  push:
+    paths:
+      - 'EwidencjaCzasuPracy/**'
+      - '.github/workflows/ewidencja-rcp.yml'
+  pull_request:
+    paths:
+      - 'EwidencjaCzasuPracy/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: EwidencjaCzasuPracy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Testy
+        run: dotnet test tests/Rcp.Tests -c Release
+
+      - name: Publikacja EXE (jeden plik, self-contained)
+        run: dotnet publish src/Rcp.App -c Release -r win-x64 -p:PublishSingleFile=true -o dist
+
+      - name: Pakiet
+        shell: pwsh
+        run: |
+          Copy-Item README.md dist/
+          Copy-Item przyklad-pracownicy.csv dist/
+          Remove-Item dist/*.pdb -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EwidencjaRCP-win-x64
+          path: EwidencjaCzasuPracy/dist/
