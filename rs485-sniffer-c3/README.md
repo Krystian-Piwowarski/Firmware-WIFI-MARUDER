@@ -1,6 +1,6 @@
 # Sniffer RS485 – ESP32-C3
 
-Pasywny podsłuch magistrali RS485 (moduł RE=GPIO3, DE=GPIO2, RO→GPIO4, DI←GPIO1) z GUI WWW i BLE.
+Pasywny podsłuch (ESP32-C3 Super Mini) magistrali RS485 (moduł RE=GPIO3, DE=GPIO2, RO→GPIO4, DI←GPIO1) z GUI WWW i BLE.
 
 ## Prędkość i format magistrali
 
@@ -13,9 +13,14 @@ Wcześniejsza wersja miała na sztywno 19200/8E1 i ignorowała ustawienie z GUI.
 
 ## Wgrywanie
 
-- Gotowy obraz: `bin/rs485-sniffer-c3-full.bin` – wgrać pod adres **0x0**
-  (np. https://espressif.github.io/esptool-js/ w Chrome/Edge). Kasuje zapisane ustawienia Wi-Fi.
-- Ze źródeł: `pio run -t upload`.
+Płytka: ESP32-C3 Super Mini (4 MB flash). W folderze projektu:
+
+```
+pio run -t erase      # jednorazowo, czyści flash (także NVS)
+pio run -t upload
+```
+
+Jeśli port nie jest widoczny: przytrzymaj BOOT, podłącz USB (lub wciśnij RESET), puść BOOT.
 
 ## GUI
 

@@ -60,8 +60,11 @@ static uint16_t frameLen   = 0;
 static uint32_t lastByteMs = 0;
 static bool     frameActive = false;
 
+static bool rsStarted = false;
+
 void applySerial() {
-    RS485Serial.end();
+    if (rsStarted) RS485Serial.end();
+    rsStarted = true;
     RS485Serial.setRxBufferSize(2048);
     RS485Serial.begin(rsBaud, fmtConfig(rsFmt), RS485_RX_PIN, RS485_TX_PIN);
     // Cisza ~4 znaki kończy ramkę, nie mniej niż 15 ms
@@ -1073,6 +1076,7 @@ void setup() {
 
     if (wifi_ssid.length() > 0) {
         WiFi.mode(WIFI_STA);
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
         WiFi.setHostname("rs485-pro-ble");
         WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
         unsigned long t = millis();
@@ -1086,8 +1090,10 @@ void setup() {
             prefs.putString("pass", "");
             prefs.end();
             WiFi.mode(WIFI_AP);
+            WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
             delay(100);
             WiFi.softAP("RS485_PRO_BLE", "12345678");
+            WiFi.setTxPower(WIFI_POWER_8_5dBm);
             dnsServer.start(53, "*", IPAddress(192,168,4,1));
             apMode = true;
         } else {
@@ -1095,8 +1101,10 @@ void setup() {
         }
     } else {
         WiFi.mode(WIFI_AP);
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
         delay(100);
         WiFi.softAP("RS485_PRO_BLE", "12345678");
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);
         dnsServer.start(53, "*", IPAddress(192,168,4,1));
         apMode = true;
     }
