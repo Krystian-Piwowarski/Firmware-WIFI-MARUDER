@@ -28,6 +28,7 @@ Preferences prefs;
 
 bool bleActive = false;
 bool apMode    = false;
+bool staMode   = false;   // zapisane SSID - pilnujemy połączenia w loop()
 uint32_t txCount = 0;
 uint32_t rxCount = 0;
 BLECharacteristic* pTxCharacteristic = nullptr;
@@ -1085,12 +1086,9 @@ void setup() {
             digitalWrite(LED_PIN, !digitalRead(LED_PIN));
         }
         if (WiFi.status() != WL_CONNECTED) {
-            prefs.begin("cfg", false);
-            prefs.putString("ssid", "");
-            prefs.putString("pass", "");
-            prefs.end();
-            WiFi.mode(WIFI_AP);
-            WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
+            // Nie kasujemy SSID/hasła - chwilowy brak sieci nie może wyłączyć STA na stałe.
+            // Wystawiamy AP do konfiguracji, a STA dalej próbuje się połączyć (patrz loop()).
+            WiFi.mode(WIFI_AP_STA);
             delay(100);
             WiFi.softAP("RS485_PRO_BLE", "12345678");
             WiFi.setTxPower(WIFI_POWER_8_5dBm);
@@ -1099,6 +1097,8 @@ void setup() {
         } else {
             digitalWrite(LED_PIN, LOW);
         }
+        staMode = true;
+        WiFi.setAutoReconnect(true);
     } else {
         WiFi.mode(WIFI_AP);
         WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
@@ -1108,6 +1108,10 @@ void setup() {
         dnsServer.start(53, "*", IPAddress(192,168,4,1));
         apMode = true;
     }
+
+    // Oszczędzanie energii Wi-Fi powoduje skoki pingu i zrywanie połączenia.
+    // Przy włączonym BLE musi zostać włączone (koegzystencja radia na C3).
+    if (!bleActive) WiFi.setSleep(false);
 
     // mDNS
     if (MDNS.begin("rs485-pro-ble")) {
@@ -1150,13 +1154,14 @@ void setup() {
         snprintf(buf, sizeof(buf),
             "{\"ip\":\"%s\",\"rssi\":%d,\"tx\":%lu,\"rx\":%lu,"
             "\"ble\":%s,\"heap\":%lu,\"sta\":%s,\"mdns\":\"rs485-pro-ble.local\","
-            "\"baud\":%lu,\"fmt\":\"%s\"}",
+            "\"baud\":%lu,\"fmt\":\"%s\",\"up\":%lu,\"rst\":%d}",
             ip.c_str(), rssi,
             (unsigned long)txCount, (unsigned long)rxCount,
             bleActive?"true":"false",
             (unsigned long)(ESP.getFreeHeap()/1024),
             (WiFi.status()==WL_CONNECTED)?"true":"false",
-            (unsigned long)rsBaud, rsFmt.c_str());
+            (unsigned long)rsBaud, rsFmt.c_str(),
+            (unsigned long)(millis() / 1000), (int)esp_reset_reason());
         server.send(200, "application/json", buf);
     });
 
@@ -1294,9 +1299,34 @@ void setup() {
     }
 }
 
+// ─── WIFI WATCHDOG ───────────────────────────────────────
+// Gdy STA nie ma połączenia dłużej niż 20 s - wymuś ponowne łączenie.
+// Po połączeniu wyłącz awaryjny AP.
+void wifiWatchdog() {
+    if (!staMode) return;
+    static uint32_t lostSince = 0;
+    if (WiFi.status() == WL_CONNECTED) {
+        lostSince = 0;
+        if (apMode) {
+            dnsServer.stop();
+            WiFi.softAPdisconnect(true);
+            WiFi.mode(WIFI_STA);
+            if (!bleActive) WiFi.setSleep(false);
+            apMode = false;
+        }
+        return;
+    }
+    if (!lostSince) { lostSince = millis(); return; }
+    if (millis() - lostSince > 20000) {
+        WiFi.reconnect();
+        lostSince = millis();
+    }
+}
+
 // ─── LOOP ────────────────────────────────────────────────
 void loop() {
     checkResetButton();
+    wifiWatchdog();
     if (apMode) dnsServer.processNextRequest();
     server.handleClient();
 
