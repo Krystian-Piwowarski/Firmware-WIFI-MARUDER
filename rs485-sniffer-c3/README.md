@@ -13,14 +13,13 @@ Wcześniejsza wersja miała na sztywno 19200/8E1 i ignorowała ustawienie z GUI.
 
 ## Wgrywanie
 
-Płytka: ESP32-C3 Super Mini (4 MB flash). W folderze projektu:
+Płytka: ESP32-C3 Super Mini (4 MB flash), partycje `min_spiffs.csv` (2 × 1,9 MB pod OTA).
 
-```
-pio run -t erase      # jednorazowo, czyści flash (także NVS)
-pio run -t upload
-```
+- Pierwszy raz / po zmianie partycji – kablem USB: `pio run -e usb -t upload`
+- Kolejne aktualizacje przez Wi-Fi (OTA): `pio run -e ota -t upload`
+  – adres ESP w `upload_port`, hasło `rs485ota` (`OTA_PASSWORD` w `main.cpp` i `--auth` w `platformio.ini` muszą się zgadzać).
 
-Jeśli port nie jest widoczny: przytrzymaj BOOT, podłącz USB (lub wciśnij RESET), puść BOOT.
+Jeśli port USB nie jest widoczny: przytrzymaj BOOT, podłącz USB (lub wciśnij RESET), puść BOOT.
 
 ## GUI
 

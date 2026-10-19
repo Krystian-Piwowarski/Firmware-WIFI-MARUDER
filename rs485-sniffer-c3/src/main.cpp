@@ -7,6 +7,13 @@
 #include <ESPmDNS.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <ArduinoOTA.h>
+
+// ─── OTA ─────────────────────────────────────────────────
+// Aktualizacja przez sieć: pio run -e ota -t upload (hasło musi się zgadzać z platformio.ini)
+#define OTA_HOSTNAME   "rs485-pro-ble"
+#define OTA_PASSWORD   "rs485ota"
+#define OTA_PORT       3232
 
 // ─── PINY ────────────────────────────────────────────────
 #define RS485_RE_PIN   3
@@ -1119,6 +1126,20 @@ void setup() {
         MDNS.addServiceTxt("http", "tcp", "device", "RS485 Pro BLE");
     }
 
+    // OTA (mDNS już uruchomione wyżej - ArduinoOTA nie startuje własnego)
+    ArduinoOTA.setHostname(OTA_HOSTNAME);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+    ArduinoOTA.setPort(OTA_PORT);
+    ArduinoOTA.setMdnsEnabled(false);
+    ArduinoOTA.onStart([]() {
+        digitalWrite(LED_PIN, HIGH);
+        RS485Serial.end();
+        rsStarted = false;
+    });
+    ArduinoOTA.onError([](ota_error_t) { applySerial(); digitalWrite(LED_PIN, LOW); });
+    ArduinoOTA.begin();
+    MDNS.enableArduino(OTA_PORT, true);
+
     // BLE
     if (bleActive) {
         BLEDevice::init("RS485 Pro BLE");
@@ -1327,6 +1348,7 @@ void wifiWatchdog() {
 void loop() {
     checkResetButton();
     wifiWatchdog();
+    ArduinoOTA.handle();
     if (apMode) dnsServer.processNextRequest();
     server.handleClient();
 
