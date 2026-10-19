@@ -1,0 +1,615 @@
+<!DOCTYPE HTML>
+<html lang="pl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RS485 Pro BLE</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d0f14;--sur:#161921;--sur2:#1e2230;--brd:#2a3040;--acc:#00e5b0;--bl:#22aaff;--rd:#ff4757;--wa:#ffa502;--pu:#e879f9;--tx:#e8eaf0;--mt:#5a6278;--mono:'JetBrains Mono',monospace;--sans:'Syne',sans-serif}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+#topbar{display:flex;align-items:center;gap:10px;padding:0 14px;height:54px;background:var(--sur);border-bottom:1px solid var(--brd);flex-shrink:0}
+.logo{font-weight:700;font-size:13px;letter-spacing:2px;color:var(--acc);margin-right:6px}
+.logo em{color:var(--tx);opacity:.4;font-style:normal}
+.inds{display:flex;gap:6px}
+.ind{display:flex;align-items:center;gap:5px;background:var(--sur2);border:1px solid var(--brd);border-radius:5px;padding:3px 9px;font-family:var(--mono);font-size:11px;color:var(--mt);transition:.2s;user-select:none}
+.ind .d{width:7px;height:7px;border-radius:50%;background:var(--mt);flex-shrink:0;transition:.15s}
+.ind.rx-on{border-color:var(--bl);color:var(--bl)}.ind.rx-on .d{background:var(--bl);box-shadow:0 0 7px var(--bl)}
+.ind.tx-on{border-color:var(--pu);color:var(--pu)}.ind.tx-on .d{background:var(--pu);box-shadow:0 0 7px var(--pu)}
+.ind.ble-on{border-color:var(--acc);color:var(--acc);cursor:pointer}.ind.ble-on .d{background:var(--acc);box-shadow:0 0 7px var(--acc)}
+.ind-ble{cursor:pointer}
+.topstats{display:flex;gap:12px;font-family:var(--mono);font-size:10px;color:var(--mt);margin-left:8px}
+.topright{margin-left:auto;display:flex;gap:8px;font-family:var(--mono);font-size:11px;align-items:center;color:var(--mt)}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:3px}
+.dot.g{background:var(--acc);box-shadow:0 0 5px var(--acc)}.dot.y{background:var(--wa);box-shadow:0 0 5px var(--wa)}
+#body{display:flex;flex:1;overflow:hidden}
+#sidebar{width:200px;flex-shrink:0;background:var(--sur);border-right:1px solid var(--brd);display:flex;flex-direction:column;overflow-y:auto}
+.ns{font-size:9px;letter-spacing:2px;color:var(--mt);padding:12px 14px 3px;opacity:.5}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;font-size:12px;color:var(--mt);border-left:3px solid transparent;transition:.13s;user-select:none}
+.ni svg{width:14px;height:14px;flex-shrink:0;pointer-events:none}
+.ni:hover{color:var(--tx);background:rgba(255,255,255,.03)}
+.ni.act{color:var(--acc);border-left-color:var(--acc);background:rgba(0,229,176,.05)}
+.ni.danger{color:var(--rd)}
+.spacer{flex:1}
+#main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.pnl{flex:1;padding:12px;gap:10px;overflow-y:auto;display:none;flex-direction:column}
+.card{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:13px 15px}
+.ct{font-size:12px;font-weight:700;color:var(--tx);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+.ct svg{width:13px;height:13px;color:var(--acc)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.sc{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:11px 13px}
+.sv{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--acc);margin-bottom:1px}
+.sl{font-size:10px;color:var(--mt)}
+.fr{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}
+.fr label{font-size:10px;color:var(--mt);letter-spacing:.7px;text-transform:uppercase}
+.fr input,.fr select,.esel{background:var(--sur2);border:1px solid var(--brd);color:var(--tx);border-radius:5px;padding:6px 9px;font-family:var(--mono);font-size:12px;outline:none;width:100%}
+.fr input:focus{border-color:var(--acc)}
+.esel{width:auto;padding:3px 6px;font-size:11px}
+.bp{background:var(--acc);color:#000;border:none;border-radius:5px;padding:6px 14px;font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer}
+.bs{background:var(--sur2);color:var(--tx);border:1px solid var(--brd);border-radius:5px;padding:6px 14px;font-family:var(--sans);font-size:12px;cursor:pointer}
+.bs:hover{border-color:var(--bl);color:var(--bl)}
+.bd{background:rgba(255,71,87,.09);color:var(--rd);border:1px solid rgba(255,71,87,.3);border-radius:5px;padding:6px 14px;font-family:var(--sans);font-size:12px;cursor:pointer}
+.tw{display:flex;flex-direction:column;flex:1;background:var(--sur);border:1px solid var(--brd);border-radius:8px;overflow:hidden;min-height:0}
+.th{display:flex;align-items:center;justify-content:space-between;padding:6px 11px;background:var(--sur2);border-bottom:1px solid var(--brd);flex-shrink:0;flex-wrap:wrap;gap:5px}
+.tht{font-family:var(--mono);font-size:10px;color:var(--mt)}
+.tac{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.tb{background:var(--sur);border:1px solid var(--brd);color:var(--mt);border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:10px;cursor:pointer}
+.tb:hover{border-color:var(--acc);color:var(--acc)}
+.tb.d:hover{border-color:var(--rd);color:var(--rd)}
+.tb.on{border-color:var(--acc);color:var(--acc);background:rgba(0,229,176,.07)}
+.sbar{display:flex;align-items:center;gap:7px;padding:4px 11px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--brd);flex-shrink:0;font-family:var(--mono);font-size:10px;flex-wrap:wrap}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--mt);flex-shrink:0}
+.sdot.live{background:var(--acc);box-shadow:0 0 7px var(--acc);animation:pulse 1.5s infinite}
+.sdot.off{background:var(--rd)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.slbl{color:var(--mt)}.slbl.live{color:var(--acc)}.slbl.off{color:var(--rd)}
+.pbdg{font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--brd);color:var(--mt)}
+.pbdg.ok{border-color:var(--acc);color:var(--acc)}
+.fbar{display:flex;align-items:center;gap:5px;padding:5px 11px;background:rgba(0,0,0,.15);border-bottom:1px solid var(--brd);flex-shrink:0;flex-wrap:wrap}
+.fchip{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--brd);color:var(--mt);cursor:pointer;user-select:none}
+.fchip.on{background:rgba(0,229,176,.12);border-color:var(--acc);color:var(--acc)}
+.fchip.err-on{background:rgba(255,71,87,.1);border-color:var(--rd);color:var(--rd)}
+.trig-bar{display:flex;align-items:center;gap:5px;padding:4px 11px;background:rgba(255,71,87,.04);border-bottom:1px solid var(--brd);flex-shrink:0;font-family:var(--mono);font-size:10px;flex-wrap:wrap}
+.trig-bar.armed{background:rgba(255,71,87,.1)}.trig-bar.fired{background:rgba(255,165,2,.12)}
+.out{flex:1;overflow-y:auto;padding:7px 11px;font-family:var(--mono);font-size:11.5px;line-height:1.75;min-height:0}
+.out::-webkit-scrollbar{width:4px}
+.out::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px}
+.ln{display:flex;gap:6px;word-break:break-all;padding:.5px 0;border-left:2px solid transparent;padding-left:4px}
+.ln.sys{color:var(--mt)}.ln.ok{color:var(--acc)}.ln.err{color:var(--rd)}.ln.warn{color:var(--wa)}.ln.rx{color:var(--bl)}.ln.tx{color:var(--pu)}
+.ts{color:var(--mt);flex-shrink:0;font-size:9.5px;opacity:.6;padding-top:2px}
+.pfx{flex-shrink:0;font-weight:700;font-size:10px;padding-top:1px}
+.hx{opacity:.45;font-size:10px;margin-left:4px}
+.crc-ok{color:var(--acc);font-size:9px;margin-left:3px}.crc-err{color:var(--rd);font-size:9px;margin-left:3px}
+.mb-dec{font-size:10px;opacity:.7;margin-left:5px;font-style:italic}
+.lat{font-size:9px;color:var(--wa);margin-left:4px}
+.tir{display:flex;gap:7px;padding:7px 11px;border-top:1px solid var(--brd);background:var(--sur2);flex-shrink:0;align-items:center}
+.prm{font-family:var(--mono);color:var(--pu);font-size:12px;flex-shrink:0}
+#tIn{flex:1;background:transparent;border:none;outline:none;font-family:var(--mono);font-size:12px;color:var(--tx);caret-color:var(--acc)}
+.sbtn{background:var(--acc);color:#000;border:none;border-radius:5px;padding:4px 12px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer}
+#sparkCanvas{width:100%;height:40px;display:block}
+.tl-wrap{flex:1;overflow-y:auto;overflow-x:auto;padding:8px 11px;min-height:0}
+.tl-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-family:var(--mono);font-size:10px}
+.tl-time{color:var(--mt);width:80px;flex-shrink:0;font-size:9px}
+.tl-bar{height:18px;border-radius:3px;display:flex;align-items:center;padding:0 6px;font-size:10px;white-space:nowrap;cursor:default;min-width:20px}
+.tl-bar:hover{opacity:.8;outline:1px solid rgba(255,255,255,.3)}
+.tl-gap{color:var(--mt);font-size:9px;padding:0 4px;opacity:.5}
+.reg-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.reg-table th{background:var(--sur2);color:var(--mt);padding:5px 10px;text-align:left;font-size:10px;border-bottom:1px solid var(--brd)}
+.reg-table td{padding:4px 10px;border-bottom:1px solid rgba(42,48,64,.5)}
+.reg-table tr:hover td{background:rgba(255,255,255,.02)}
+.reg-new{animation:flash .4s}
+@keyframes flash{0%{background:rgba(0,229,176,.2)}100%{background:transparent}}
+.reg-val{color:var(--acc);font-weight:700}
+.wlist{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+.wi{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--sur2);border:1px solid var(--brd);border-radius:5px;cursor:pointer;font-size:12px}
+.wi:hover{border-color:var(--bl)}
+.sig{display:flex;gap:2px;align-items:flex-end}
+.sb2{width:3px;background:var(--mt);border-radius:1px}.sb2.lit{background:var(--bl)}
+.lf{background:var(--sur);border:1px solid var(--brd);color:var(--mt);border-radius:4px;padding:2px 8px;font-family:var(--mono);font-size:10px;cursor:pointer}
+.lf.on{border-color:var(--acc);color:var(--acc);background:rgba(0,229,176,.06)}
+.sr{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--brd)}
+.sr:last-child{border-bottom:none}
+.sn{font-size:12px;color:var(--tx)}.sd{font-size:10px;color:var(--mt);margin-top:1px}
+.tog{width:36px;height:18px;background:var(--sur2);border:1px solid var(--brd);border-radius:18px;cursor:pointer;position:relative;transition:.18s;flex-shrink:0}
+.tog.on{background:var(--acc);border-color:var(--acc)}
+.tog::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:.18s}
+.tog.on::after{left:20px}
+.s0{color:#00e5b0}.s1{color:#22aaff}.s2{color:#e879f9}.s3{color:#ffa502}.s4{color:#ff6b6b}.s5{color:#a8e6cf}.s6{color:#dda0dd}.s7{color:#87ceeb}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px}
+</style></head>
+<body>
+<div id="topbar">
+  <div class="logo">RS485 Pro BLE <span style="font-size:8px;opacity:.4;letter-spacing:1px">RS485 GATEWAY</span></div>
+  <div class="inds">
+    <div class="ind" id="iRX"><div class="d"></div>RX</div>
+    <div class="ind" id="iTX"><div class="d"></div>TX</div>
+    <div class="ind ind-ble" id="iBLE" onclick="toggleBLE()"><div class="d"></div><span id="bleLabel">BLE OFF</span></div>
+  </div>
+  <div class="topstats">
+    <span>BUS: <span id="busLoad" style="color:var(--acc)">0%</span></span>
+    <span>CRC ERR: <span id="crcErrCnt" style="color:var(--rd)">0</span></span>
+    <span>LAT: <span id="latAvg" style="color:var(--wa)">--</span>ms</span>
+    <span>FRAMES: <span id="frameCnt" style="color:var(--bl)">0</span></span>
+  </div>
+  <div class="topright">
+    <span id="wTop"><span class="dot y"></span>AP: ESP32</span>
+    <span id="upEl">UP: 0s</span>
+  </div>
+</div>
+<div id="body">
+<div id="sidebar">
+  <div class="ns">PANEL</div>
+  <div class="ni act" onclick="nav(this,'dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</div>
+  <div class="ni" onclick="nav(this,'sniff')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Sniffer RS485</div>
+  <div class="ni" onclick="nav(this,'timeline')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/></svg>Timeline</div>
+  <div class="ni" onclick="nav(this,'regs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>Rejestry Modbus</div>
+  <div class="ns">SIEC</div>
+  <div class="ni" onclick="nav(this,'wifi')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>Konfiguracja WiFi</div>
+  <div class="ns">DIAGNOSTYKA</div>
+  <div class="ni" onclick="nav(this,'logs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Logi systemowe</div>
+  <div class="ni" onclick="nav(this,'cfg')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Ustawienia</div>
+  <div class="spacer"></div>
+  <div class="ni danger" onclick="doReset()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Restart ESP32</div>
+</div>
+<div id="main">
+
+<!-- DASHBOARD -->
+<div class="pnl" id="p-dash">
+  <div class="g4">
+    <div class="sc"><div class="sv" id="d-rssi">--</div><div class="sl">WiFi RSSI (dBm)</div></div>
+    <div class="sc"><div class="sv" id="d-tx" style="color:var(--pu)">0</div><div class="sl">Pakiety TX</div></div>
+    <div class="sc"><div class="sv" id="d-rx" style="color:var(--bl)">0</div><div class="sl">Pakiety RX</div></div>
+    <div class="sc"><div class="sv" id="d-crc" style="color:var(--rd)">0</div><div class="sl">Bledy CRC</div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Zajętość magistrali RS485</div><canvas id="sparkCanvas" height="40"></canvas><div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--mt);margin-top:4px"><span>60s temu</span><span id="busLoadNow">0%</span><span>teraz</span></div></div>
+    <div class="card"><div class="ct">Latency TX→RX (ms)</div><div style="font-family:var(--mono);font-size:11px;line-height:2;color:var(--mt)"><div>Min: <span id="latMin" style="color:var(--acc)">--</span></div><div>Max: <span id="latMax" style="color:var(--rd)">--</span></div><div>Avg: <span id="latAvg2" style="color:var(--wa)">--</span></div><div>N: <span id="latN" style="color:var(--tx)">0</span></div></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">Urzadzenia (slave)</div><div id="slaveList" style="font-family:var(--mono);font-size:11px;color:var(--mt)">Brak danych...</div></div>
+    <div class="card"><div class="ct">Szybki send RS485</div>
+      <div style="display:flex;gap:7px;margin-bottom:8px"><input id="quickMsg" placeholder="Komenda ASCII lub HEX..." style="flex:1;background:var(--sur2);border:1px solid var(--brd);color:var(--tx);border-radius:5px;padding:6px 10px;font-family:var(--mono);font-size:12px;outline:none"><button class="bp" onclick="quickSend()">TX</button></div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap"><button class="tb" onclick="qi('01 03 00 00 00 0A C5 CD')">MB Read</button><button class="tb" onclick="qi('01 06 00 00 00 01 48 0A')">MB Write</button><button class="tb" onclick="qi('AT')">AT</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- SNIFFER -->
+<div class="pnl" id="p-sniff">
+  <div class="tw">
+    <div class="th">
+      <span class="tht">RS485 Sniffer &mdash; 19200/8E1 &mdash; <span id="modeLabel">Modbus+ASCII</span></span>
+      <div class="tac">
+        <select class="esel" id="dispMode" onchange="document.getElementById('modeLabel').textContent=this.options[this.selectedIndex].text">
+          <option value="modbus">Modbus+ASCII</option><option value="both">HEX+ASCII</option><option value="hex">HEX</option><option value="ascii">ASCII</option>
+        </select>
+        <button class="tb" id="btnTs" onclick="tTs(this)">Czas</button>
+        <button class="tb on" id="btnAs" onclick="tAs(this)">AutoScroll</button>
+        <button class="tb" onclick="expCSV()">CSV</button>
+        <button class="tb" onclick="expPCAP()">PCAP</button>
+        <button class="tb" onclick="expTerm()">TXT</button>
+        <button class="tb d" onclick="clearTerm()">Wyczysc</button>
+      </div>
+    </div>
+    <div class="sbar" id="sbar">
+      <div class="sdot off" id="sdot"></div>
+      <span class="slbl off" id="slbl">BLE wylaczone -- sniffer nieaktywny</span>
+      <span class="pbdg" id="pbdg">POLL: --</span>
+      <div style="flex:1"></div>
+      <div class="fchip" id="pauseBtn" onclick="togglePause(this)">&#9654; LIVE</div>
+    </div>
+    <div class="fbar">
+      <span style="font-size:10px;color:var(--mt)">Slave:</span>
+      <div class="fchip on" id="fAll" onclick="setSlaveFilter('ALL',this)">WSZYSTKIE</div>
+      <div id="fSlaves"></div>
+      <span style="font-size:10px;color:var(--mt);margin-left:8px">FC:</span>
+      <div class="fchip on" id="fFcAll" onclick="setFcFilter('ALL',this)">ALL</div>
+      <div id="fFcs"></div>
+      <span style="font-size:10px;color:var(--mt);margin-left:8px">Pokaz:</span>
+      <div class="fchip on" onclick="toggleFilter('rx',this)">RX</div>
+      <div class="fchip on" onclick="toggleFilter('tx',this)">TX</div>
+      <div class="fchip err-on" onclick="toggleFilter('crc',this)">CRC ERR</div>
+    </div>
+    <div class="trig-bar" id="trigBar">
+      <span style="color:var(--rd)">TRIGGER:</span>
+      <input id="trigPat" placeholder="pattern HEX np. 01 03..." style="background:var(--sur2);border:1px solid var(--brd);color:var(--tx);border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:10px;outline:none;width:180px">
+      <div class="fchip" id="trigBtn" onclick="armTrigger()">ARM</div>
+      <span id="trigStatus" style="color:var(--mt)">nieaktywny</span>
+      <div style="flex:1"></div>
+      <span style="color:var(--mt)">Stop po:</span>
+      <select class="esel" id="trigStop"><option value="0">nie</option><option value="1">1</option><option value="5">5</option><option value="10">10</option></select>
+    </div>
+    <div class="out" id="tOut"></div>
+    <div class="tir"><span class="prm">TX&gt;&gt;</span><input id="tIn" placeholder="Wyslij komende..." autocomplete="off" spellcheck="false"><button class="sbtn" onclick="sendCmd()">WYSLIJ</button></div>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div class="pnl" id="p-timeline">
+  <div class="tw">
+    <div class="th"><span class="tht">Timeline &mdash; ramki na osi czasu</span><div class="tac"><button class="tb" onclick="expCSV()">CSV</button><button class="tb d" onclick="clearTimeline()">Wyczysc</button></div></div>
+    <div class="tl-wrap" id="tlWrap"></div>
+  </div>
+</div>
+
+<!-- REJESTRY -->
+<div class="pnl" id="p-regs">
+  <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-shrink:0">
+    <span style="font-family:var(--mono);font-size:11px;color:var(--mt)">Slave:</span>
+    <select class="esel" id="regSlave" style="font-size:11px;padding:4px 8px" onchange="renderRegs()"><option value="all">Wszystkie</option></select>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--mt);margin-left:8px">Format:</span>
+    <select class="esel" id="regFmt" style="font-size:11px;padding:4px 8px" onchange="renderRegs()"><option value="dec">DEC</option><option value="hex">HEX</option><option value="bin">BIN</option></select>
+    <div style="flex:1"></div>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--mt)" id="regCount">0 rejestrów</span>
+    <button class="tb" onclick="clearRegs()">Wyczysc</button>
+  </div>
+  <div style="background:var(--sur);border:1px solid var(--brd);border-radius:8px;overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="overflow:auto;flex:1"><table class="reg-table"><thead><tr><th>Slave</th><th>Rejestr</th><th>Wartosc</th><th>FC</th><th>Aktualizacja</th><th>Zmiany</th></tr></thead><tbody id="regBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- WIFI -->
+<div class="pnl" id="p-wifi">
+  <div class="g2" style="align-items:start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="ct">Polacz z siecia WiFi</div>
+        <div class="fr"><label>SSID</label><input id="wS" placeholder="NazwaSieci"></div>
+        <div class="fr"><label>Haslo</label><input id="wP" type="password" placeholder="........"></div>
+        <div style="display:flex;gap:7px;margin-top:3px"><button class="bp" onclick="cwifi()">Polacz</button><button class="bs" onclick="scanW()">Skanuj</button></div>
+        <div id="wMsg" style="font-family:var(--mono);font-size:10px;margin-top:8px;color:var(--mt);min-height:13px"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Tryb hotspot AP</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--mt);line-height:2;margin-bottom:9px"><div>SSID: <span style="color:var(--tx)">RS485_PRO_BLE</span></div><div>Haslo: <span style="color:var(--tx)">12345678</span></div><div>IP: <span style="color:var(--acc)">192.168.4.1</span></div></div>
+        <button class="bd" onclick="swAP()">Przelacz na AP</button>
+      </div>
+    </div>
+    <div class="card"><div class="ct">Dostepne sieci</div><div class="wlist" id="wList"><div style="font-family:var(--mono);font-size:11px;color:var(--mt);text-align:center;padding:16px">Kliknij Skanuj...</div></div></div>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div class="pnl" id="p-logs">
+  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;flex-shrink:0">
+    <button class="lf on" onclick="setF('ALL',this)">WSZYSTKIE</button>
+    <button class="lf" onclick="setF('[SYS]',this)">SYS</button>
+    <button class="lf" onclick="setF('[TX]',this)">TX</button>
+    <button class="lf" onclick="setF('[RX]',this)">RX</button>
+    <button class="lf" onclick="setF('[ERR]',this)">ERR</button>
+    <div style="flex:1"></div>
+    <button class="tb" onclick="expLogs()">TXT</button>
+    <button class="tb d" onclick="clearLogs()">Wyczysc</button>
+  </div>
+  <div style="background:var(--sur);border:1px solid var(--brd);border-radius:8px;overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="out" id="lOut" style="flex:1"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="pnl" id="p-cfg">
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:540px">
+    <div class="card">
+      <div class="ct">Bluetooth LE</div>
+      <div class="sr"><div><div class="sn">BLE aktywny</div><div class="sd">Wlacza BLE UART NUS i sniffer RS485</div></div><div class="tog" id="bleTog" onclick="toggleBLE()"></div></div>
+      <div class="sr"><div class="sn">Nazwa BLE</div><input id="bleN" value="RS485 Pro BLE" style="background:var(--sur2);border:1px solid var(--brd);color:var(--tx);border-radius:5px;padding:4px 8px;font-family:var(--mono);font-size:11px;outline:none;width:155px"></div>
+    </div>
+    <div class="card">
+      <div class="ct">RS485</div>
+      <div class="sr"><div class="sn">Baud rate</div><select class="esel" id="baudS" style="font-size:11px;padding:4px 8px"><option>9600</option><option selected>19200</option><option>38400</option><option>57600</option><option>115200</option></select></div>
+      <div class="sr"><div class="sn">Format ramki</div><select class="esel" style="font-size:11px;padding:4px 8px"><option selected>8E1</option><option>8N1</option><option>8O1</option></select></div>
+      <div class="sr"><div><div class="sn">Dekodowanie Modbus RTU</div><div class="sd">Parsuj adresy slave, FC, rejestry, CRC</div></div><div class="tog on" id="mbTog" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="card"><div class="sr"><div><div class="sn">Reset fabryczny NVS</div><div class="sd">Czyści Preferences i restartuje</div></div><button class="bd" onclick="doReset()">Reset</button></div></div>
+    <div style="display:flex;gap:7px"><button class="bp" onclick="saveCfg()">Zapisz</button><button class="bs" onclick="if(confirm('Restart?'))fetch('/api/reset')">Restart ESP32</button></div>
+  </div>
+</div>
+
+</div></div>
+<script>
+// ── STATE ──────────────────────────────────────────────────
+var logs=[],lf='ALL',showTs=true,aScroll=true,paused=false;
+var txC=0,rxC=0,bleOn=false;
+var t0=Date.now(),hist=[],hi=-1;
+var txT=null,rxT=null,pollTimer=null,pollOk=false;
+var PANELS=['dash','sniff','timeline','regs','wifi','logs','cfg'];
+var slaveColors={},slaveColorIdx=0;
+var SLAVE_COLORS=['s0','s1','s2','s3','s4','s5','s6','s7'];
+var slaves={},fcSet={},regs={},allFrames=[];
+var slaveFilter='ALL',fcFilter='ALL',showRX=true,showTX=true,showCRC=true;
+var busActivity=new Array(60).fill(0);
+var lastBusSec=Math.floor(Date.now()/1000),bytesThisSec=0;
+var latencies=[],crcErrors=0,totalFrames=0;
+var pendingReq={};
+var trigArmed=false,trigPattern=null,trigFired=0;
+var tcEl=null,tcDir=null,tcTimer=null;
+
+// ── NAV ───────────────────────────────────────────────────
+function nav(el,id){
+  document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('act');});
+  PANELS.forEach(function(p){var e=document.getElementById('p-'+p);if(e)e.style.display='none';});
+  el.classList.add('act');
+  var t=document.getElementById('p-'+id);
+  if(t){t.style.display='flex';t.style.flexDirection='column';}
+  if(id==='timeline')renderTimeline();
+}
+
+// ── INDICATORS ────────────────────────────────────────────
+function fRX(){var e=document.getElementById('iRX');e.classList.add('rx-on');clearTimeout(rxT);rxT=setTimeout(function(){e.classList.remove('rx-on');},300);}
+function fTX(){var e=document.getElementById('iTX');e.classList.add('tx-on');clearTimeout(txT);txT=setTimeout(function(){e.classList.remove('tx-on');},300);}
+
+function updateBLE(){
+  var i=document.getElementById('iBLE'),l=document.getElementById('bleLabel'),tg=document.getElementById('bleTog');
+  if(bleOn){i.classList.add('ble-on');l.textContent='BLE ON';tg.classList.add('on');}
+  else{i.classList.remove('ble-on');l.textContent='BLE OFF';tg.classList.remove('on');}
+  updateSbar();
+  if(bleOn) startPolling(); else stopPolling();
+}
+function toggleBLE(){bleOn=!bleOn;updateBLE();sysLog(bleOn?'BLE wlaczone':'BLE wylaczone');fetch('/api/ble').catch(function(){});}
+
+// ── POLLING SNIFFER ───────────────────────────────────────
+function updateSbar(){
+  var dot=document.getElementById('sdot'),lbl=document.getElementById('slbl'),bdg=document.getElementById('pbdg');
+  if(!bleOn){dot.className='sdot off';lbl.className='slbl off';lbl.textContent='BLE wylaczone -- sniffer nieaktywny';bdg.className='pbdg';bdg.textContent='POLL: --';}
+  else if(pollOk){dot.className='sdot live';lbl.className='slbl live';lbl.textContent='Sniffer aktywny -- polling 500ms';bdg.className='pbdg ok';bdg.textContent='POLL: OK';}
+  else{dot.className='sdot';lbl.className='slbl';lbl.textContent='Laczenie...';bdg.className='pbdg';bdg.textContent='POLL: ...';}
+}
+
+function startPolling(){
+  if(pollTimer)return;
+  pollTimer=setInterval(function(){
+    fetch('/api/frames').then(function(r){return r.json();}).then(function(j){
+      pollOk=true;updateSbar();
+      if(j.frames&&j.frames.length){
+        j.frames.forEach(function(msg){onFrame(msg);});
+      }
+    }).catch(function(){pollOk=false;updateSbar();});
+  },500);
+}
+function stopPolling(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}pollOk=false;updateSbar();}
+
+// ── BUS STATS ─────────────────────────────────────────────
+function recordBusBytes(n){
+  var sec=Math.floor(Date.now()/1000);
+  if(sec!==lastBusSec){busActivity.shift();busActivity.push(bytesThisSec);bytesThisSec=0;lastBusSec=sec;drawSparkline();}
+  bytesThisSec+=n;
+}
+function drawSparkline(){
+  var c=document.getElementById('sparkCanvas');if(!c)return;
+  var ctx=c.getContext('2d'),W=c.clientWidth||300,H=40;
+  c.width=W;c.height=H;ctx.clearRect(0,0,W,H);
+  var max=Math.max.apply(null,busActivity)||1,bw=W/busActivity.length;
+  ctx.fillStyle='rgba(0,229,176,.15)';ctx.strokeStyle='#00e5b0';ctx.lineWidth=1.5;ctx.beginPath();
+  for(var i=0;i<busActivity.length;i++){var x=i*bw,y=H-(busActivity[i]/max)*(H-4)-2;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x+bw/2,y);}
+  ctx.stroke();ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();
+  var load=Math.round((bytesThisSec/(19200/11))*100);
+  document.getElementById('busLoad').textContent=load+'%';document.getElementById('busLoadNow').textContent=load+'%';
+}
+function recordLatency(ms){
+  latencies.push(ms);if(latencies.length>200)latencies.shift();
+  var mn=Math.min.apply(null,latencies),mx=Math.max.apply(null,latencies),avg=Math.round(latencies.reduce(function(a,b){return a+b;},0)/latencies.length);
+  document.getElementById('latMin').textContent=mn;document.getElementById('latMax').textContent=mx;
+  document.getElementById('latAvg').textContent=avg;document.getElementById('latAvg2').textContent=avg;document.getElementById('latN').textContent=latencies.length;
+}
+
+// ── MODBUS CRC16 ─────────────────────────────────────────
+function crc16(buf,len){var crc=0xFFFF;for(var i=0;i<len;i++){crc^=buf[i];for(var j=0;j<8;j++){if(crc&1)crc=(crc>>1)^0xA001;else crc>>=1;}}return crc;}
+var FC={1:'Read Coils',2:'Read Discrete',3:'Read Holding',4:'Read Input',5:'Write Coil',6:'Write Reg',16:'Write Multi Reg'};
+function parseMB(bytes){
+  if(bytes.length<4)return null;
+  var slave=bytes[0],fc=bytes[1];if(fc>43)return null;
+  var dlen=bytes.length,crcCalc=crc16(bytes,dlen-2),crcGot=(bytes[dlen-1]<<8)|bytes[dlen-2];
+  var r={slave:slave,fc:fc,crcOk:crcCalc===crcGot,raw:bytes,desc:'',type:'unk'};
+  if((fc===3||fc===4)&&dlen===8){r.reg=(bytes[2]<<8)|bytes[3];r.cnt=(bytes[4]<<8)|bytes[5];r.desc='Read reg '+r.reg+' cnt '+r.cnt;r.type='req';}
+  else if((fc===3||fc===4)&&bytes[2]===dlen-5){r.type='rsp';r.vals=[];var bc=bytes[2];for(var i=0;i<bc;i+=2)r.vals.push((bytes[3+i]<<8)|bytes[4+i]);r.desc='Response '+r.vals.length+' regs: '+r.vals.slice(0,4).join(', ')+(r.vals.length>4?'...':'');}
+  else if(fc===6&&dlen===8){r.reg=(bytes[2]<<8)|bytes[3];r.val=(bytes[4]<<8)|bytes[5];r.desc='Write reg '+r.reg+' = '+r.val;r.type='req';r.vals=[r.val];}
+  else if(fc===16){r.reg=(bytes[2]<<8)|bytes[3];r.cnt=(bytes[4]<<8)|bytes[5];r.desc='Write multi reg '+r.reg+' cnt '+r.cnt;r.type='req';}
+  else r.desc=(FC[fc]||'FC '+fc);
+  return r;
+}
+function slaveColor(s){if(slaveColors[s]===undefined){slaveColors[s]=SLAVE_COLORS[slaveColorIdx%SLAVE_COLORS.length];slaveColorIdx++;}return slaveColors[s];}
+
+// ── FRAME PROCESSOR ───────────────────────────────────────
+function onFrame(msg){
+  var isRx=(msg.dir==='RX'||msg.dir==='R');
+  if(!isRx&&msg.dir!=='TX'&&msg.dir!=='T')return;
+  var dirStr=isRx?'RX':'TX';
+  var hexStr=msg.d||'';
+  var bytes=[];
+  if(hexStr.trim())hexStr.trim().split(/\s+/).forEach(function(h){if(h)bytes.push(parseInt(h,16));});
+  recordBusBytes(bytes.length);
+  totalFrames++;document.getElementById('frameCnt').textContent=totalFrames;
+  var mb=null,mbOk=document.getElementById('mbTog').classList.contains('on');
+  if(mbOk&&bytes.length>=4)mb=parseMB(bytes);
+  var crcOk=mb?mb.crcOk:true;
+  if(mb&&!crcOk){crcErrors++;document.getElementById('crcErrCnt').textContent=crcErrors;document.getElementById('d-crc').textContent=crcErrors;}
+  // Latency
+  if(mb){
+    if(!isRx&&mb.type==='req')pendingReq[mb.slave]={t:Date.now(),reg:mb.reg,fc:mb.fc};
+    if(isRx&&mb.type==='rsp'&&pendingReq[mb.slave]){var lat=Date.now()-pendingReq[mb.slave].t;recordLatency(lat);msg._lat=lat;if(mb.vals&&pendingReq[mb.slave].reg!==undefined){updateRegTable(mb.slave,pendingReq[mb.slave].fc||mb.fc,pendingReq[mb.slave].reg,mb.vals);}delete pendingReq[mb.slave];}
+    if(mb.slave!==undefined&&!slaves[mb.slave]){slaves[mb.slave]=true;updateSlaveFilters();updateSlaveList();}
+    if(mb.fc&&!fcSet[mb.fc]){fcSet[mb.fc]=true;updateFcFilters();}
+    if(!isRx&&mb.type==='req'&&mb.vals&&mb.reg!==undefined)updateRegTable(mb.slave,mb.fc,mb.reg,mb.vals);
+  }
+  var fr={t:Date.now(),dir:dirStr,bytes:bytes,hex:hexStr,ascii:msg.a||'',mb:mb,crcOk:crcOk,ms:msg.ms||0};
+  if(msg._lat)fr._lat=msg._lat;
+  allFrames.push(fr);if(allFrames.length>2000)allFrames.shift();
+  // Trigger
+  if(trigArmed&&trigPattern&&hexStr.toLowerCase().indexOf(trigPattern.toLowerCase())>=0){
+    trigFired++;document.getElementById('trigStatus').textContent='FIRED x'+trigFired;
+    document.getElementById('trigBar').className='trig-bar fired';
+    var sa=parseInt(document.getElementById('trigStop').value);
+    if(sa>0&&trigFired>=sa){paused=true;document.getElementById('pauseBtn').textContent='&#9654; WZNOW';}
+  }
+  if(paused)return;
+  if(isRx){fRX();rxC++;document.getElementById('d-rx').textContent=rxC;}
+  else{fTX();txC++;document.getElementById('d-tx').textContent=txC;}
+  if(!passFilter(dirStr,mb,crcOk))return;
+  termAppend({dir:dirStr,d:hexStr,a:msg.a||'',ms:msg.ms||0,_lat:msg._lat},isRx,mb,crcOk);
+  addTimelineRow(fr);
+}
+
+function passFilter(dir,mb,crcOk){
+  if(dir==='RX'&&!showRX)return false;
+  if(dir==='TX'&&!showTX)return false;
+  if(mb&&slaveFilter!=='ALL'&&mb.slave!=slaveFilter)return false;
+  if(mb&&fcFilter!=='ALL'&&mb.fc!=fcFilter)return false;
+  return true;
+}
+function updateSlaveFilters(){
+  var el=document.getElementById('fSlaves');el.innerHTML='';
+  Object.keys(slaves).sort(function(a,b){return a-b;}).forEach(function(s){
+    var d=document.createElement('div');d.className='fchip on '+slaveColor(s);d.textContent='S'+s;
+    d.onclick=function(){setSlaveFilter(s,d);};el.appendChild(d);
+  });
+  var sel=document.getElementById('regSlave');
+  while(sel.options.length>1)sel.remove(1);
+  Object.keys(slaves).sort().forEach(function(s){var o=document.createElement('option');o.value=s;o.textContent='Slave '+s;sel.appendChild(o);});
+}
+function updateFcFilters(){
+  var el=document.getElementById('fFcs');el.innerHTML='';
+  Object.keys(fcSet).sort(function(a,b){return a-b;}).forEach(function(f){
+    var d=document.createElement('div');d.className='fchip on';d.textContent='FC'+f;
+    d.onclick=function(){setFcFilter(f,d);};el.appendChild(d);
+  });
+}
+function setSlaveFilter(s,el){slaveFilter=s;document.getElementById('fAll').classList.remove('on');document.querySelectorAll('#fSlaves .fchip').forEach(function(c){c.classList.remove('on');});if(s==='ALL'){document.getElementById('fAll').classList.add('on');document.querySelectorAll('#fSlaves .fchip').forEach(function(c){c.classList.add('on');});}else{el.classList.toggle('on');}}
+function setFcFilter(f,el){fcFilter=f;document.getElementById('fFcAll').classList.remove('on');document.querySelectorAll('#fFcs .fchip').forEach(function(c){c.classList.remove('on');});if(f==='ALL'){document.getElementById('fFcAll').classList.add('on');document.querySelectorAll('#fFcs .fchip').forEach(function(c){c.classList.add('on');});}else{el.classList.toggle('on');}}
+function toggleFilter(type,el){el.classList.toggle('on');if(type==='rx')showRX=el.classList.contains('on');if(type==='tx')showTX=el.classList.contains('on');if(type==='crc')showCRC=el.classList.contains('on');}
+function updateSlaveList(){var el=document.getElementById('slaveList');var keys=Object.keys(slaves);if(!keys.length){el.textContent='Brak danych...';return;}el.innerHTML='';keys.sort(function(a,b){return a-b;}).forEach(function(s){var d=document.createElement('div');d.style.marginBottom='3px';d.innerHTML='<span class="'+slaveColor(s)+'">&#9632;</span> Slave <b style="color:var(--tx)">'+s+'</b> (0x'+parseInt(s).toString(16).toUpperCase()+')';el.appendChild(d);});}
+function updateRegTable(slave,fc,startReg,vals){vals.forEach(function(v,i){var key=slave+'_'+(startReg+i);var prev=regs[key];regs[key]={slave:slave,reg:startReg+i,val:v,fc:fc,ts:tsNow(),count:(prev?prev.count+1:1)};});renderRegs();}
+function renderRegs(){
+  var body=document.getElementById('regBody'),fmt=document.getElementById('regFmt').value,selSlave=document.getElementById('regSlave').value;
+  body.innerHTML='';
+  var keys=Object.keys(regs).filter(function(k){return selSlave==='all'||regs[k].slave==selSlave;});
+  keys.sort(function(a,b){var ra=regs[a],rb=regs[b];return ra.slave!==rb.slave?ra.slave-rb.slave:ra.reg-rb.reg;});
+  keys.forEach(function(k){
+    var r=regs[k],val=r.val,fmtVal=fmt==='hex'?'0x'+val.toString(16).toUpperCase().padStart(4,'0'):fmt==='bin'?'0b'+val.toString(2).padStart(16,'0'):String(val);
+    var tr=document.createElement('tr');tr.className='reg-new';
+    tr.innerHTML='<td><span class="'+slaveColor(r.slave)+'">'+r.slave+'</span></td><td>'+r.reg+' (0x'+r.reg.toString(16).toUpperCase().padStart(4,'0')+')</td><td class="reg-val">'+fmtVal+'</td><td>FC'+r.fc+'</td><td style="color:var(--mt)">'+r.ts+'</td><td style="color:var(--mt)">'+r.count+'</td>';
+    body.appendChild(tr);
+  });
+  document.getElementById('regCount').textContent=keys.length+' rejestr'+(keys.length===1?'':'ow');
+}
+function clearRegs(){regs={};document.getElementById('regBody').innerHTML='';}
+
+// ── TERMINAL ─────────────────────────────────────────────
+function tcFlush(){tcEl=null;tcDir=null;clearTimeout(tcTimer);tcTimer=null;}
+function termAppend(msg,isRx,mb,crcOk){
+  var el=document.getElementById('tOut');if(!el)return;
+  var dm=document.getElementById('dispMode').value,dir=msg.dir;
+  if(dm==='modbus'||!tcEl||tcDir!==dir){tcFlush();var row=document.createElement('div');row.className='ln '+(isRx?'rx':'tx');if(mb&&!mb.crcOk)row.className+=' err';row.innerHTML=(showTs?'<span class="ts">'+tsNow()+'</span>':'')+'<span class="pfx">['+dir+']</span>';var sp=document.createElement('span');row.appendChild(sp);el.appendChild(row);tcEl=sp;tcDir=dir;logs.push({ts:ts14(),cls:(isRx?'rx':'tx'),pfx:'['+dir+']',msg:''});if(dm!=='modbus'){clearTimeout(tcTimer);tcTimer=setTimeout(tcFlush,2000);}}
+  var chunk='';
+  if(dm==='modbus'){if(mb){var sc=slaveColor(mb.slave);chunk='<span class="'+sc+'">S'+mb.slave+'</span> <span style="color:var(--wa)">FC'+mb.fc+'</span> <span class="mb-dec">'+esc(mb.desc)+'</span>'+(mb.crcOk?'<span class="crc-ok">CRC&#10003;</span>':'<span class="crc-err">CRC&#10007;</span>');if(msg._lat)chunk+='<span class="lat">'+msg._lat+'ms</span>';}else chunk=esc(msg.d)+'<span style="opacity:.5"> ['+esc(msg.a)+']</span>';}
+  else if(dm==='both')chunk=esc(msg.d)+'<span style="opacity:.55"> ['+esc(msg.a)+']</span>'+(mb?(mb.crcOk?'<span class="crc-ok">&#10003;</span>':'<span class="crc-err">&#10007;</span>'):'');
+  else if(dm==='hex')chunk=esc(msg.d);
+  else chunk=esc(msg.a);
+  chunk+='<span class="hx">+'+msg.ms+'ms</span>';
+  tcEl.innerHTML=chunk;
+  if(logs.length)logs[logs.length-1].msg+=msg.a+' '+msg.d;
+  addLogPanel({ts:ts14(),cls:(isRx?'rx':'tx'),pfx:'['+dir+']',msg:msg.d+' '+msg.a});
+  if(aScroll)el.scrollTop=el.scrollHeight;
+  if(dm==='modbus')tcFlush();
+}
+
+// ── TIMELINE ─────────────────────────────────────────────
+function addTimelineRow(fr){
+  var wrap=document.getElementById('tlWrap');if(!wrap)return;
+  var isRx=(fr.dir==='RX'),row=document.createElement('div');row.className='tl-row';
+  var d=new Date(fr.t),tstr=d.toTimeString().slice(0,8)+'.'+String(d.getMilliseconds()).padStart(3,'0');
+  row.innerHTML='<span class="tl-time">'+tstr+'</span>';
+  var bw=Math.max(20,Math.min(fr.bytes.length*4,350)),bg=isRx?'rgba(34,170,255,.25)':'rgba(232,121,249,.25)',border=isRx?'var(--bl)':'var(--pu)';
+  var bar=document.createElement('div');bar.className='tl-bar';bar.style.cssText='width:'+bw+'px;background:'+bg+';border:1px solid '+border;
+  var label=fr.bytes.length+'B';if(fr.mb)label='S'+fr.mb.slave+' FC'+fr.mb.fc+' '+fr.bytes.length+'B';if(fr.mb&&!fr.mb.crcOk)label+=' &#10007;';
+  bar.innerHTML=label;bar.title=fr.hex;row.appendChild(bar);
+  if(fr._lat){var g=document.createElement('span');g.className='tl-gap';g.textContent=fr._lat+'ms';row.appendChild(g);}
+  wrap.appendChild(row);if(aScroll)wrap.scrollTop=wrap.scrollHeight;
+  while(wrap.children.length>500)wrap.removeChild(wrap.firstChild);
+}
+function renderTimeline(){var wrap=document.getElementById('tlWrap');wrap.innerHTML='';allFrames.slice(-200).forEach(function(fr){addTimelineRow(fr);});}
+function clearTimeline(){document.getElementById('tlWrap').innerHTML='';allFrames=[];}
+
+// ── PAUSE / TRIGGER ───────────────────────────────────────
+function togglePause(el){paused=!paused;el.textContent=paused?'&#9654; WZNOW':'&#9654; LIVE';}
+function armTrigger(){
+  var pat=document.getElementById('trigPat').value.trim();
+  if(!pat||trigArmed){trigArmed=false;trigPattern=null;document.getElementById('trigBtn').textContent='ARM';document.getElementById('trigStatus').textContent='nieaktywny';document.getElementById('trigBar').className='trig-bar';return;}
+  trigPattern=pat;trigArmed=true;trigFired=0;
+  document.getElementById('trigBtn').textContent='DISARM';document.getElementById('trigStatus').textContent='uzbrojony: "'+pat+'"';document.getElementById('trigBar').className='trig-bar armed';
+}
+
+// ── EXPORT ────────────────────────────────────────────────
+function expCSV(){
+  var rows=['Timestamp,Direction,Slave,FC,CRC_OK,Bytes,HEX,ASCII,Latency_ms'];
+  allFrames.forEach(function(fr){var mb=fr.mb||{};rows.push([new Date(fr.t).toISOString(),fr.dir,mb.slave!==undefined?mb.slave:'',mb.fc!==undefined?mb.fc:'',fr.crcOk?'1':'0',fr.bytes.length,'"'+fr.hex+'"','"'+(fr.ascii||'').replace(/"/g,'""')+'"',fr._lat||''].join(','));});
+  dl('rs485_'+Date.now()+'.csv',rows.join('\n'));
+}
+function expPCAP(){
+  var frames=allFrames,total=24;frames.forEach(function(fr){total+=16+fr.bytes.length;});
+  var buf=new Uint8Array(total),v=new DataView(buf.buffer),o=0;
+  v.setUint32(o,0xd4c3b2a1,true);o+=4;v.setUint16(o,2,true);o+=2;v.setUint16(o,4,true);o+=2;v.setInt32(o,0,true);o+=4;v.setUint32(o,0,true);o+=4;v.setUint32(o,65535,true);o+=4;v.setUint32(o,147,true);o+=4;
+  frames.forEach(function(fr){v.setUint32(o,Math.floor(fr.t/1000),true);o+=4;v.setUint32(o,(fr.t%1000)*1000,true);o+=4;v.setUint32(o,fr.bytes.length,true);o+=4;v.setUint32(o,fr.bytes.length,true);o+=4;for(var i=0;i<fr.bytes.length;i++)buf[o++]=fr.bytes[i];});
+  var blob=new Blob([buf],{type:'application/octet-stream'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rs485_'+Date.now()+'.pcap';a.click();
+}
+function expTerm(){var o='RS485 Pro BLE Sniffer\n'+new Date().toISOString()+'\n'+'='.repeat(60)+'\n';allFrames.forEach(function(fr){var mb=fr.mb;o+=new Date(fr.t).toISOString()+' ['+fr.dir+'] ';if(mb)o+='S'+mb.slave+' FC'+mb.fc+' '+mb.desc+' CRC:'+(fr.crcOk?'OK':'ERR')+' | ';o+=fr.hex+'\n';});dl('rs485_'+Date.now()+'.txt',o);}
+function expLogs(){var r=lf==='ALL'?logs:logs.filter(function(e){return e.pfx===lf;});var o='RS485 Pro BLE Logs\n';r.forEach(function(e){o+=e.ts+' '+e.pfx+' '+e.msg+'\n';});dl('logs_'+Date.now()+'.txt',o);}
+function dl(n,t){var a=document.createElement('a');if(typeof t==='string')a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(t);a.download=n;a.click();}
+
+// ── LOG UTILS ─────────────────────────────────────────────
+function tsNow(){var d=new Date();return d.toTimeString().slice(0,8);}
+function ts14(){return new Date().toISOString().slice(0,19).replace('T',' ');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function sysLog(msg,cls){var el=document.getElementById('tOut');if(!el)return;tcFlush();var d=document.createElement('div');d.className='ln '+(cls||'sys');d.innerHTML=(showTs?'<span class="ts">'+tsNow()+'</span>':'')+'<span class="pfx">[SYS]</span><span>'+esc(msg)+'</span>';el.appendChild(d);if(aScroll)el.scrollTop=el.scrollHeight;var e={ts:ts14(),cls:(cls||'sys'),pfx:'[SYS]',msg:msg};logs.push(e);addLogPanel(e);}
+function addLogPanel(e){var el=document.getElementById('lOut');if(!el)return;if(lf!=='ALL'&&e.pfx!==lf)return;var d=document.createElement('div');d.className='ln '+e.cls;d.innerHTML='<span class="ts">'+e.ts+'</span><span class="pfx">'+e.pfx+'</span><span>'+esc(e.msg)+'</span>';el.appendChild(d);el.scrollTop=el.scrollHeight;}
+function clearTerm(){document.getElementById('tOut').innerHTML='';tcFlush();}
+function clearLogs(){document.getElementById('lOut').innerHTML='';logs=[];}
+function tTs(btn){showTs=!showTs;btn.classList.toggle('on');}
+function tAs(btn){aScroll=!aScroll;btn.classList.toggle('on');}
+function setF(f,el){lf=f;document.querySelectorAll('.lf').forEach(function(b){b.classList.remove('on');});el.classList.add('on');var out=document.getElementById('lOut');out.innerHTML='';var r=f==='ALL'?logs:logs.filter(function(e){return e.pfx===f;});r.forEach(function(e){var d=document.createElement('div');d.className='ln '+e.cls;d.innerHTML='<span class="ts">'+e.ts+'</span><span class="pfx">'+e.pfx+'</span><span>'+esc(e.msg)+'</span>';out.appendChild(d);});out.scrollTop=out.scrollHeight;}
+
+// ── SEND ──────────────────────────────────────────────────
+function sendCmd(){var inp=document.getElementById('tIn'),raw=inp.value.trim();if(!raw)return;hist.unshift(raw);if(hist.length>100)hist.pop();hi=-1;inp.value='';tcFlush();var el=document.getElementById('tOut');var d=document.createElement('div');d.className='ln tx';d.innerHTML=(showTs?'<span class="ts">'+tsNow()+'</span>':'')+'<span class="pfx">[TX]</span><span>'+esc(raw)+'</span>';el.appendChild(d);if(aScroll)el.scrollTop=el.scrollHeight;fTX();logs.push({ts:ts14(),cls:'tx',pfx:'[TX]',msg:raw});fetch('/api/send?msg='+encodeURIComponent(raw)).catch(function(){});}
+function sq(c){document.getElementById('tIn').value=c;sendCmd();}
+function qi(c){document.getElementById('quickMsg').value=c;quickSend();}
+function quickSend(){var v=document.getElementById('quickMsg').value.trim();if(!v)return;document.getElementById('tIn').value=v;sendCmd();document.getElementById('quickMsg').value='';}
+
+// ── WIFI ──────────────────────────────────────────────────
+function cwifi(){var s=document.getElementById('wS').value.trim(),p=document.getElementById('wP').value;if(!s){document.getElementById('wMsg').textContent='Podaj SSID!';return;}document.getElementById('wMsg').textContent='Laczenie...';fetch('/api/connect?ssid='+encodeURIComponent(s)+'&pass='+encodeURIComponent(p)).catch(function(){});setTimeout(function(){document.getElementById('wMsg').textContent='Zapisano — restart...';},1000);}
+function swAP(){document.getElementById('wMsg').textContent='Przelaczanie na AP...';fetch('/api/reset').catch(function(){});}
+function scanW(){document.getElementById('wMsg').textContent='Skanowanie...';var n=[{s:'SiecDomowa',r:4,l:true},{s:'Biuro_5G',r:3,l:true},{s:'ESP32_TEST',r:2,l:false}];setTimeout(function(){var list=document.getElementById('wList');list.innerHTML='';n.forEach(function(net){var d=document.createElement('div');d.className='wi';var sig='<div class="sig">';for(var i=0;i<4;i++)sig+='<div class="sb2'+(i<net.r?' lit':'')+'" style="height:'+(6+i*4)+'px"></div>';sig+='</div>';d.innerHTML='<span style="font-family:var(--mono);font-size:11px">'+net.s+'</span><div style="display:flex;align-items:center;gap:6px">'+sig+(net.l?'<span>&#128274;</span>':'<span style="font-size:10px;color:var(--acc)">OPEN</span>')+'</div>';(function(nt){d.onclick=function(){document.getElementById('wS').value=nt.s;document.getElementById('wP').focus();};})(net);list.appendChild(d);});document.getElementById('wMsg').textContent='Znaleziono '+n.length;},1300);}
+
+// ── SETTINGS ──────────────────────────────────────────────
+function saveCfg(){var b=document.getElementById('baudS').value,bn=document.getElementById('bleN').value;fetch('/api/save?ble='+(bleOn?1:0)+'&baud='+b+'&blename='+encodeURIComponent(bn)).catch(function(){});sysLog('Zapisano: BLE='+(bleOn?'ON':'OFF')+' Baud='+b,'ok');}
+function doReset(){if(confirm('Reset fabryczny?')){fetch('/api/reset').catch(function(){});sysLog('Reset NVS...','err');}}
+
+// ── KEYBOARD ──────────────────────────────────────────────
+document.getElementById('tIn').addEventListener('keydown',function(e){if(e.key==='Enter')sendCmd();else if(e.key==='ArrowUp'){e.preventDefault();if(hi<hist.length-1){hi++;this.value=hist[hi];}}else if(e.key==='ArrowDown'){e.preventDefault();if(hi>0){hi--;this.value=hist[hi];}else{hi=-1;this.value='';};}});
+document.getElementById('quickMsg').addEventListener('keydown',function(e){if(e.key==='Enter')quickSend();});
+
+// ── BOOT ──────────────────────────────────────────────────
+PANELS.forEach(function(p){var e=document.getElementById('p-'+p);if(e)e.style.display=(p==='dash')?'flex':'none';});
+sysLog('RS485 Pro BLE Gateway start');updateSbar();
+fetch('/api/status').then(function(r){return r.json();}).then(function(j){
+  if(j.ble!==undefined){bleOn=j.ble;updateBLE();}
+  document.getElementById('wTop').innerHTML='<span class="dot '+(j.rssi?'g':'y')+'"></span>IP: '+j.ip;
+  if(j.rssi)document.getElementById('d-rssi').textContent=j.rssi;
+  if(bleOn)startPolling();else sysLog('BLE nieaktywne -- wlacz w Ustawieniach','warn');
+}).catch(function(){sysLog('Brak /api/status','warn');});
+
+setInterval(function(){
+  var s=Math.floor((Date.now()-t0)/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;
+  document.getElementById('upEl').textContent='UP: '+(h?h+'h ':'')+( m?m+'m ':'')+sc+'s';
+  drawSparkline();
+},1000);
+
+setInterval(function(){
+  fetch('/api/status').then(function(r){return r.json();}).then(function(j){
+    if(j.rssi!==undefined)document.getElementById('d-rssi').textContent=j.rssi;
+    if(j.tx!==undefined){txC=j.tx;document.getElementById('d-tx').textContent=j.tx;}
+    if(j.rx!==undefined){rxC=j.rx;document.getElementById('d-rx').textContent=j.rx;}
+  }).catch(function(){});
+},5000);
+</script>
+</body></html>
