@@ -26,6 +26,11 @@
 #ifndef LED_RGB
 #define LED_RGB        0
 #endif
+// Moc nadawania Wi-Fi. Super Mini z anteną ceramiczną jest niestabilny przy pełnej mocy,
+// moduł z zewnętrzną anteną może nadawać mocniej (ustawiane w platformio.ini)
+#ifndef WIFI_TX_POWER
+#define WIFI_TX_POWER  WIFI_POWER_8_5dBm
+#endif
 #define LED_BRIGHT     24  // jasność 0-255 (WS2812 przy 255 oślepia)
 #define BOOT_BUTTON    9
 
@@ -1252,7 +1257,7 @@ void setup() {
 
     if (wifi_ssid.length() > 0) {
         WiFi.mode(WIFI_STA);
-        WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
+        WiFi.setTxPower(WIFI_TX_POWER);
         WiFi.setHostname("rs485-pro-ble");
         WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
         unsigned long t = millis();
@@ -1267,7 +1272,7 @@ void setup() {
             WiFi.mode(WIFI_AP_STA);
             delay(100);
             WiFi.softAP("RS485_PRO_BLE", "12345678");
-            WiFi.setTxPower(WIFI_POWER_8_5dBm);
+            WiFi.setTxPower(WIFI_TX_POWER);
             dnsServer.start(53, "*", IPAddress(192,168,4,1));
             apMode = true;
         }
@@ -1275,10 +1280,10 @@ void setup() {
         WiFi.setAutoReconnect(true);
     } else {
         WiFi.mode(WIFI_AP);
-        WiFi.setTxPower(WIFI_POWER_8_5dBm);  // C3 Super Mini: pełna moc powoduje niestabilność
+        WiFi.setTxPower(WIFI_TX_POWER);
         delay(100);
         WiFi.softAP("RS485_PRO_BLE", "12345678");
-        WiFi.setTxPower(WIFI_POWER_8_5dBm);
+        WiFi.setTxPower(WIFI_TX_POWER);
         dnsServer.start(53, "*", IPAddress(192,168,4,1));
         apMode = true;
     }
