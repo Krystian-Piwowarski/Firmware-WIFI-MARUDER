@@ -298,7 +298,8 @@ body{background:var(--bg);color:var(--tx);font-family:var(--sans);display:flex;f
     </div>
     <div class="card">
       <div class="ct">RS485</div>
-      <div class="sr"><div class="sn">Baud rate</div><select class="esel" id="baudS" style="font-size:11px;padding:4px 8px"><option>1200</option><option>2400</option><option>4800</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></div>
+      <div class="sr"><div class="sn">Baud rate</div><input class="esel" id="baudS" type="number" min="1200" max="250000" step="1" value="9600" list="baudL" style="font-size:11px;padding:4px 8px;width:90px"><datalist id="baudL"><option>1200</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></datalist></div>
+      <div class="sr"><div><div class="sn">Pomiar prędkości linii</div><div class="sd" id="measR">Mierzy rzeczywisty czas bitu na RX (3 s)</div></div><button class="bs" onclick="measureLine()">Zmierz</button></div>
       <div class="sr"><div class="sn">Format ramki</div><select class="esel" id="fmtS" style="font-size:11px;padding:4px 8px"><option selected>8N1</option><option>8E1</option><option>8O1</option><option>8N2</option></select></div>
       <div class="sr"><div><div class="sn">Dekodowanie Modbus RTU</div><div class="sd">Parsuj adresy slave, FC, rejestry, CRC</div></div><div class="tog on" id="mbTog" onclick="this.classList.toggle('on')"></div></div>
     </div>
@@ -583,6 +584,7 @@ function scanW(){document.getElementById('wMsg').textContent='Skanowanie...';var
 // ── SETTINGS ──────────────────────────────────────────────
 var serBaud=9600,serBits=10;
 function setSerial(b,f){serBaud=+b||9600;serBits=1+8+(f.charAt(1)==='N'?0:1)+(+f.charAt(2)||1);document.getElementById('baudS').value=String(serBaud);document.getElementById('fmtS').value=f;document.getElementById('serLabel').textContent=serBaud+'/'+f;}
+function measureLine(){var e=document.getElementById('measR');e.textContent='Pomiar...';fetch('/api/measure').then(function(r){return r.json();}).then(function(j){if(!j.ok){e.textContent='Za mało danych na linii ('+j.n+' zboczy)';return;}e.textContent='Bit '+j.bit_us.toFixed(1)+' µs = '+j.baud+' baud';document.getElementById('baudS').value=j.baud;sysLog('Pomiar: '+JSON.stringify(j),'ok');}).catch(function(){e.textContent='Błąd pomiaru';});}
 function saveCfg(){var b=document.getElementById('baudS').value,f=document.getElementById('fmtS').value,bn=document.getElementById('bleN').value;fetch('/api/save?ble='+(bleOn?1:0)+'&baud='+b+'&fmt='+f+'&blename='+encodeURIComponent(bn)).then(function(r){return r.json();}).then(function(j){if(j.baud)setSerial(j.baud,j.fmt);}).catch(function(){});sysLog('Zapisano: BLE='+(bleOn?'ON':'OFF')+' RS485='+b+'/'+f,'ok');}
 function doReset(){if(confirm('Reset fabryczny?')){fetch('/api/reset').catch(function(){});sysLog('Reset NVS...','err');}}
 
