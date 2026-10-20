@@ -21,7 +21,12 @@
 #define RS485_DE_PIN   2
 #define RS485_RX_PIN   4   // RO
 #define RS485_TX_PIN   1   // DI
-#define LED_PIN        8
+#define LED_PIN        8   // Super Mini: niebieska dioda, Super Mini Plus: WS2812 (RGB)
+// LED_RGB=1 (build_flags) - dioda adresowalna WS2812/NeoPixel na LED_PIN
+#ifndef LED_RGB
+#define LED_RGB        0
+#endif
+#define LED_BRIGHT     24  // jasność 0-255 (WS2812 przy 255 oślepia)
 #define BOOT_BUTTON    9
 
 // ─── BLE UUID ────────────────────────────────────────────
@@ -128,10 +133,91 @@ class MyCallbacks : public BLECharacteristicCallbacks {
     }
 };
 
+// ─── DIODA STANU ─────────────────────────────────────────
+// Kolor stały/miganie = stan ESP, krótki błysk = transmisja RS485:
+//   biały          start
+//   niebieski miga łączenie z Wi-Fi
+//   pomarańczowy   tylko AP (RS485_PRO_BLE, 192.168.4.1)
+//   zielony        Wi-Fi OK, ruch na RS485
+//   zielony miga   Wi-Fi OK, cisza na RS485 > 5 s
+//   fioletowy miga aktualizacja OTA
+//   biały miga     pomiar prędkości linii
+//   błysk cyjan    odebrana ramka z poprawną sumą XOR
+//   błysk czerwony odebrana ramka z błędną sumą (zła prędkość/format)
+//   błysk żółty    nadawanie na RS485
+//   czerwony miga  reset fabryczny (BOOT 5 s)
+enum LedMode : uint8_t { LM_BOOT, LM_RUN, LM_OTA, LM_MEASURE };
+static LedMode  ledMode = LM_BOOT;
+static uint32_t ledFlashColor = 0, ledFlashUntil = 0, ledShown = 0xFFFFFFFF;
+
+static void ledWrite(uint32_t rgb) {
+    if (rgb == ledShown) return;
+    ledShown = rgb;
+#if LED_RGB
+    uint8_t r = ((rgb >> 16) & 0xFF) * LED_BRIGHT / 255;
+    uint8_t g = ((rgb >> 8)  & 0xFF) * LED_BRIGHT / 255;
+    uint8_t b = ( rgb        & 0xFF) * LED_BRIGHT / 255;
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+    rgbLedWrite(LED_PIN, r, g, b);
+#else
+    neopixelWrite(LED_PIN, r, g, b);
+#endif
+#else
+    digitalWrite(LED_PIN, rgb ? HIGH : LOW);
+#endif
+}
+
+void ledFlash(uint32_t rgb, uint16_t ms) {
+    ledFlashColor = rgb;
+    ledFlashUntil = millis() + ms;
+}
+
+static bool blink(uint16_t period) { return (millis() % period) < period / 2; }
+
+void ledUpdate() {
+    uint32_t now = millis();
+    uint32_t c;
+    switch (ledMode) {
+        case LM_OTA:     c = blink(200) ? 0xFF00FF : 0; break;
+        case LM_MEASURE: c = blink(300) ? 0xFFFFFF : 0; break;
+        case LM_BOOT:    c = (WiFi.getMode() & WIFI_STA) ? (blink(500) ? 0x0000FF : 0) : 0xFFFFFF; break;
+        default:
+            if (WiFi.status() == WL_CONNECTED)
+                c = (frameLen || now - lastByteMs < 5000) ? 0x00FF00 : (blink(2000) ? 0x00FF00 : 0);
+            else if (apMode)
+                c = 0xFF6000;
+            else
+                c = blink(500) ? 0x0000FF : 0;
+    }
+    if ((int32_t)(ledFlashUntil - now) > 0) c = ledFlashColor;
+    ledWrite(c);
+}
+
+// Ramki 7E 7E DST SRC FLAG LEN ... XOR - true gdy wszystkie w buforze mają dobrą sumę
+static uint32_t rxFramesOk = 0, rxFramesBad = 0;
+static bool checkFrames(const uint8_t* buf, size_t len) {
+    bool allOk = true;
+    size_t i = 0;
+    while (i < len) {
+        while (i < len && buf[i] == 0x7E) i++;
+        size_t st = i;
+        while (i < len && buf[i] != 0x7E) i++;
+        size_t n = i - st;
+        if (n < 5) continue;
+        const uint8_t* f = buf + st;
+        size_t need = 4 + f[3];
+        uint8_t x = 0;
+        if (need <= n) for (size_t k = 0; k < need; k++) x ^= f[k];
+        if (need <= n && x == 0) rxFramesOk++;
+        else { rxFramesBad++; allOk = false; }
+    }
+    return allOk;
+}
+
 // ─── RS485 SEND ──────────────────────────────────────────
 void sendToRS485(const uint8_t* data, size_t len) {
     if (!len) return;
-    digitalWrite(LED_PIN, HIGH);
+    ledFlash(0xFFC000, 60);
     digitalWrite(RS485_RE_PIN, HIGH);
     digitalWrite(RS485_DE_PIN, HIGH);
     delayMicroseconds(10);
@@ -141,7 +227,6 @@ void sendToRS485(const uint8_t* data, size_t len) {
     digitalWrite(RS485_DE_PIN, LOW);
     delayMicroseconds(10);
     digitalWrite(RS485_RE_PIN, LOW);
-    digitalWrite(LED_PIN, LOW);
     txCount++;
     // Sniffer TX — zawsze aktywny
     sniffPush(data, len, "TX");
@@ -167,8 +252,8 @@ void checkResetButton() {
     while (digitalRead(BOOT_BUTTON) == LOW) {
         if (millis() - t > 5000) {
             for (int i=0;i<10;i++){
-                digitalWrite(LED_PIN,HIGH);delay(100);
-                digitalWrite(LED_PIN,LOW);delay(100);
+                ledWrite(0xFF0000);delay(100);
+                ledWrite(0);delay(100);
             }
             prefs.begin("cfg", false);
             prefs.clear();
@@ -1092,7 +1177,9 @@ String measureLine(uint32_t ms) {
     measLast = esp_timer_get_time();
     attachInterrupt(digitalPinToInterrupt(RS485_RX_PIN), measIsr, CHANGE);
     uint32_t t0 = millis();
-    while (millis() - t0 < ms && measN < MEAS_MAX) delay(5);
+    ledMode = LM_MEASURE;
+    while (millis() - t0 < ms && measN < MEAS_MAX) { ledUpdate(); delay(5); }
+    ledMode = LM_RUN;
     detachInterrupt(digitalPinToInterrupt(RS485_RX_PIN));
     applySerial();
 
@@ -1132,9 +1219,11 @@ String measureLine(uint32_t ms) {
 
 // ─── SETUP ───────────────────────────────────────────────
 void setup() {
+#if !LED_RGB
     pinMode(LED_PIN, OUTPUT);
+#endif
     pinMode(BOOT_BUTTON, INPUT_PULLUP);
-    digitalWrite(LED_PIN, HIGH);
+    ledUpdate();
 
     // RS485 piny — TX HIGH przed begin() żeby nie zaśmiecać magistrali
     pinMode(RS485_TX_PIN, OUTPUT);
@@ -1169,7 +1258,7 @@ void setup() {
         unsigned long t = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - t < 10000) {
             delay(200);
-            digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+            ledUpdate();
         }
         if (WiFi.status() != WL_CONNECTED) {
             // Nie kasujemy SSID/hasła - chwilowy brak sieci nie może wyłączyć STA na stałe.
@@ -1180,8 +1269,6 @@ void setup() {
             WiFi.setTxPower(WIFI_POWER_8_5dBm);
             dnsServer.start(53, "*", IPAddress(192,168,4,1));
             apMode = true;
-        } else {
-            digitalWrite(LED_PIN, LOW);
         }
         staMode = true;
         WiFi.setAutoReconnect(true);
@@ -1211,11 +1298,13 @@ void setup() {
     ArduinoOTA.setPort(OTA_PORT);
     ArduinoOTA.setMdnsEnabled(false);
     ArduinoOTA.onStart([]() {
-        digitalWrite(LED_PIN, HIGH);
+        ledMode = LM_OTA;
+        ledUpdate();
         RS485Serial.end();
         rsStarted = false;
     });
-    ArduinoOTA.onError([](ota_error_t) { applySerial(); digitalWrite(LED_PIN, LOW); });
+    ArduinoOTA.onProgress([](unsigned int, unsigned int) { ledUpdate(); });
+    ArduinoOTA.onError([](ota_error_t) { applySerial(); ledMode = LM_RUN; });
     ArduinoOTA.begin();
     MDNS.enableArduino(OTA_PORT, true);
 
@@ -1250,18 +1339,20 @@ void setup() {
                         ? WiFi.localIP().toString()
                         : WiFi.softAPIP().toString();
         int rssi = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
-        char buf[300];
+        char buf[384];
         snprintf(buf, sizeof(buf),
             "{\"ip\":\"%s\",\"rssi\":%d,\"tx\":%lu,\"rx\":%lu,"
             "\"ble\":%s,\"heap\":%lu,\"sta\":%s,\"mdns\":\"rs485-pro-ble.local\","
-            "\"baud\":%lu,\"fmt\":\"%s\",\"up\":%lu,\"rst\":%d}",
+            "\"baud\":%lu,\"fmt\":\"%s\",\"up\":%lu,\"rst\":%d,"
+            "\"rxok\":%lu,\"rxerr\":%lu}",
             ip.c_str(), rssi,
             (unsigned long)txCount, (unsigned long)rxCount,
             bleActive?"true":"false",
             (unsigned long)(ESP.getFreeHeap()/1024),
             (WiFi.status()==WL_CONNECTED)?"true":"false",
             (unsigned long)rsBaud, rsFmt.c_str(),
-            (unsigned long)(millis() / 1000), (int)esp_reset_reason());
+            (unsigned long)(millis() / 1000), (int)esp_reset_reason(),
+            (unsigned long)rxFramesOk, (unsigned long)rxFramesBad);
         server.send(200, "application/json", buf);
     });
 
@@ -1385,7 +1476,7 @@ void setup() {
     });
 
     server.begin();
-    digitalWrite(LED_PIN, LOW);
+    ledMode = LM_RUN;
 
     // Logi startowe przez BLE (po 2s żeby klient zdążył się połączyć)
     if (bleActive) {
@@ -1433,6 +1524,7 @@ void loop() {
     checkResetButton();
     wifiWatchdog();
     ArduinoOTA.handle();
+    ledUpdate();
     if (apMode) dnsServer.processNextRequest();
     server.handleClient();
 
@@ -1450,6 +1542,7 @@ void loop() {
         rxCount++;
         // Sniffer — zawsze aktywny
         sniffPush(frameBuf, frameLen, "RX");
+        ledFlash(checkFrames(frameBuf, frameLen) ? 0x00FFFF : 0xFF0000, 40);
         // BLE notify — tylko gdy aktywne
         if (bleActive && pTxCharacteristic) {
             pTxCharacteristic->setValue(frameBuf, frameLen);
