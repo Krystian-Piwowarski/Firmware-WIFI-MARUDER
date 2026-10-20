@@ -1259,6 +1259,7 @@ void setup() {
         while (WiFi.status() != WL_CONNECTED && millis() - t < 10000) {
             delay(200);
             ledUpdate();
+            checkResetButton();   // BOOT 5 s działa też w trakcie łączenia
         }
         if (WiFi.status() != WL_CONNECTED) {
             // Nie kasujemy SSID/hasła - chwilowy brak sieci nie może wyłączyć STA na stałe.
