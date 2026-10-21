@@ -1,11 +1,12 @@
 """Test lokalnego sterowania pompą ciepła Gree (moduł Wi-Fi z aplikacji Gree+).
 
-Tylko ODCZYT: wyszukuje urządzenia Gree w sieci, paruje się (bind) i odczytuje parametry.
-Niczego nie zmienia w pompie.
+Bez dodatkowych opcji tylko ODCZYTUJE parametry - niczego nie zmienia w pompie.
 
 Wymaga:  pip install pycryptodome
-Użycie:  python gree_scan.py                 (szuka przez broadcast)
-         python gree_scan.py 10.100.21.50    (gdy znasz IP modułu)
+Użycie:  python gree_scan.py                          (szuka przez broadcast)
+         python gree_scan.py 10.100.21.38             (gdy znasz IP modułu)
+         python gree_scan.py 10.100.21.38 --set WatBoxTemSet 46
+                                                      (ZMIANA parametru - jak w aplikacji)
 """
 import base64, json, socket, sys
 
@@ -84,8 +85,38 @@ def decode_pack(r, key_ecb, key_gcm):
     return ecb_dec(key_ecb, r["pack"]), "ecb"
 
 
+# Dozwolone zmiany i zakresy - zabezpieczenie przed literówką
+SET_LIMITS = {
+    "Pow": (0, 1),
+    "Mod": (1, 5),
+    "HeWatOutTemSet": (20, 55),
+    "CoWatOutTemSet": (7, 25),
+    "WatBoxTemSet": (35, 60),
+}
+
+
+def send(ip, mac, key, mode, obj):
+    msg = {"cid": "app", "i": 0, "t": "pack", "uid": 0, "tcid": mac}
+    if mode == "gcm":
+        msg["pack"], msg["tag"] = gcm_enc(key, obj)
+    else:
+        msg["pack"] = ecb_enc(key, obj)
+    d, _ = decode_pack(request(ip, msg), key, key)
+    return d
+
+
 def main():
-    target = sys.argv[1] if len(sys.argv) > 1 else "255.255.255.255"
+    args = sys.argv[1:]
+    setopt = None
+    if "--set" in args:
+        i = args.index("--set")
+        setopt = (args[i + 1], int(args[i + 2]))
+        args = args[:i] + args[i + 3:]
+        lim = SET_LIMITS.get(setopt[0])
+        if not lim or not lim[0] <= setopt[1] <= lim[1]:
+            print(f"Odmowa: {setopt[0]}={setopt[1]} poza dozwolonym zakresem {SET_LIMITS}")
+            return
+    target = args[0] if args else "255.255.255.255"
     print(f"Szukam urządzeń Gree ({target}:{PORT})...")
     devs = scan(target)
     if not devs:
@@ -109,14 +140,12 @@ def main():
         key = b["key"].encode()
         print(f"bind OK, klucz urządzenia: {b['key']}")
 
+        if setopt:
+            r = send(ip, mac, key, mode, {"opt": [setopt[0]], "p": [setopt[1]], "t": "cmd"})
+            print(f"\nZMIANA {setopt[0]} = {setopt[1]} -> odpowiedź: {r}")
+
         # Status
-        st = {"cols": COLS, "mac": mac, "t": "status"}
-        msg = {"cid": "app", "i": 0, "t": "pack", "uid": 0, "tcid": mac}
-        if mode == "gcm":
-            msg["pack"], msg["tag"] = gcm_enc(key, st)
-        else:
-            msg["pack"] = ecb_enc(key, st)
-        d, _ = decode_pack(request(ip, msg), key, key)
+        d = send(ip, mac, key, mode, {"cols": COLS, "mac": mac, "t": "status"})
         print("\nParametry:")
         for c, v in zip(d.get("cols", []), d.get("dat", [])):
             print(f"  {c:16} = {v}")
